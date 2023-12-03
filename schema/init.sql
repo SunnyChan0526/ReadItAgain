@@ -6,7 +6,7 @@ CREATE TABLE MEMBER (
     UserID VARCHAR(20) PRIMARY KEY,
     Email VARCHAR(100) UNIQUE NOT NULL,
     Name VARCHAR(50) NOT NULL,
-    Gender BOOLEAN NOT NULL,
+    Gender BOOLEAN NOT NULL, -- true for boy, false for girl
     RegistrationTime TIMESTAMP NOT NULL,
     Verified VARCHAR(10) NOT NULL,
     Password VARCHAR(50) NOT NULL,
