@@ -1,26 +1,9 @@
 import databases
-import ormar
 import sqlalchemy
-
 from .config import settings
 
+# 建立數據庫連接
 database = databases.Database(settings.db_url)
+
+# 創建 SQLAlchemy 的元數據實例
 metadata = sqlalchemy.MetaData()
-
-
-class BaseMeta(ormar.ModelMeta):
-    metadata = metadata
-    database = database
-
-
-class User(ormar.Model):
-    class Meta(BaseMeta):
-        tablename = "users"
-
-    id: int = ormar.Integer(primary_key=True)
-    email: str = ormar.String(max_length=128, unique=True, nullable=False)
-    active: bool = ormar.Boolean(default=True, nullable=False)
-
-
-engine = sqlalchemy.create_engine(settings.db_url)
-metadata.create_all(engine)
