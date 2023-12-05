@@ -17,16 +17,16 @@ class Book(ormar.Model):
     class Meta(BaseMeta):
         tablename = "book"
 
-    bookid: str = ormar.String(primary_key=True, max_length=20)
-    sellerid: str = ormar.String(max_length=20)
-    orderid: str = ormar.String(max_length=20, nullable=True)
-    discountcode: str = ormar.String(max_length=20, nullable=True)
+    bookid: int = ormar.Integer(primary_key=True)
+    sellerid: int = ormar.Integer(foreign_key="seller.SellerID")
+    orderid: int = ormar.Integer(foreign_key="orders.OrderID", nullable=True)
+    discountcode: str = ormar.String(max_length=20, foreign_key="discount.DiscountCode", nullable=True)
     isbn: str = ormar.String(max_length=20, unique=True)
-    shippinglocation: str = ormar.String(max_length=100)
-    shippingmethod: str = ormar.String(max_length=50)
+    shippinglocation: str = ormar.String(max_length=6)
+    shippingmethod: str = ormar.String(max_length=2)
     name: str = ormar.String(max_length=100)
     bookpicture: str = ormar.String(max_length=200)
-    condition: str = ormar.String(max_length=50)
+    condition: str = ormar.String(max_length=3)
     price: int = ormar.Integer()
     description: str = ormar.String(max_length=1000)
     category: str = ormar.String(max_length=50)

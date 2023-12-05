@@ -16,7 +16,7 @@ async def read_root():
     return "testroot"
 
 class BookSearch(BaseModel):
-    sellerid: str
+    sellerid: int
     isbn: str
     name: str
     bookpicture: str
