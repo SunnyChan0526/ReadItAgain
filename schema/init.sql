@@ -51,14 +51,14 @@ CREATE TABLE CUSTOMER (
 
 -- Insert fake data into CUSTOMER table
 INSERT INTO CUSTOMER (CustomerID) VALUES
-('1'),
-('2'),
-('3'),
-('4'),
-('5'),
-('6'),
-('7'),
-('8');
+(1),
+(2),
+(3),
+(4),
+(5),
+(6),
+(7),
+(8);
 
 -- Create SELLER table
 CREATE TABLE SELLER (
@@ -67,14 +67,14 @@ CREATE TABLE SELLER (
 
 -- Insert fake data into SELLER table
 INSERT INTO SELLER (SellerID) VALUES
-('1'),
-('2'),
-('3'),
-('4'),
-('5'),
-('6'),
-('7'),
-('8');
+(1),
+(2),
+(3),
+(4),
+(5),
+(6),
+(7),
+(8);
 
 -- Create ADMINISTRATOR table
 CREATE TABLE ADMINISTRATOR (
@@ -83,9 +83,9 @@ CREATE TABLE ADMINISTRATOR (
 
 -- Insert fake data into ADMINISTRATOR table
 INSERT INTO ADMINISTRATOR (AdministratorID) VALUES
-('9'),
-('10'),
-('11');
+(9),
+(10),
+(11);
 
 -- Create ORDERS table
 CREATE TABLE ORDERS (
@@ -102,32 +102,44 @@ CREATE TABLE ORDERS (
 
 -- Insert fake data into ORDER table
 INSERT INTO ORDERS (SellerID, CustomerID, OrderStatus, Time, TotalAmount, TotalBookCount, Comment, Stars) VALUES
-('2', '1', '送達', '2021-01-02 15:00:00', 400, 2, '人很NICE!', 5);
+(2, 1, '送達', '2021-01-02 15:00:00', 400, 2, '人很NICE!', 5);
 
 -- Create DISCOUNT table
 CREATE TABLE DISCOUNT (
-    DiscountCode VARCHAR(20) PRIMARY KEY,
+    DiscountCode SERIAL PRIMARY KEY,
     SellerID INTEGER NOT NULL REFERENCES SELLER(SellerID) ON UPDATE CASCADE ON DELETE CASCADE,
     Name VARCHAR(100) NOT NULL,
-    Type VARCHAR(50) NOT NULL,
+    Type VARCHAR(50) NOT NULL CHECK (Type IN ('shipping fee', 'seasoning', 'special event')),
     Description VARCHAR(500) NOT NULL,
     StartDate TIMESTAMP NOT NULL,
     EndDate TIMESTAMP NOT NULL,
-    DiscountRate FLOAT NOT NULL,
-    TotalAmountForDiscount INTEGER NOT NULL,
-    Applied BOOLEAN NOT NULL
+    DiscountRate FLOAT,
+    EventTag VARCHAR(50),
+    MinimumAmountForDiscount INTEGER
+    CONSTRAINT check_shipping_fee_type CHECK (Type != 'shipping fee' OR (Type = 'shipping fee' AND MinimumAmountForDiscount IS NOT NULL)),
+    CONSTRAINT check_special_event_type CHECK (Type != 'special event' OR (Type = 'special event' AND EventTag IS NOT NULL)),
+    CONSTRAINT check_seasoning_type CHECK (Type != 'seasoning' OR (Type = 'seasoning' AND DiscountRate IS NOT NULL AND MinimumAmountForDiscount IS NOT NULL))
 );
 
+
 -- Insert fake data into DISCOUNT table
-INSERT INTO DISCOUNT VALUES 
-('discount01', '2', '暑期促銷', '百分比', '所有書籍9折', '2023-07-01 00:00:00', '2023-08-31 23:59:59', 0.9, 1000, false);
+INSERT INTO DISCOUNT (SellerID, Name, Type, Description, StartDate, EndDate, DiscountRate, EventTag, MinimumAmountForDiscount)
+VALUES 
+(2, '暑期促銷', 'seasoning', '所有書籍9折', '2023-07-01 00:00:00', '2023-08-31 23:59:59', 0.9, null, 200),
+(2, '免運券', 'shipping fee', '滿200免運費', '2023-07-01 00:00:00', '2023-08-31 23:59:59', null, null, 200),
+(2, '好禮額外送', 'special event', '現在買小王子就額外送親子繪本', '2023-07-01 00:00:00', '2023-08-31 23:59:59', null, '額外好禮', null),
+(3, '50折價券', 'seasoning', '只要滿300額外折價50元', '2023-07-01 00:00:00', '2023-08-31 23:59:59', 50.0, null, 200),
+(3, '買一送一', 'special event', '現在哈利波特買一送一', '2023-07-01 00:00:00', '2023-08-31 23:59:59', null, '買一送一', null);
+
+
+
 
 -- Create BOOK table
 CREATE TABLE BOOK (
     BookID SERIAL PRIMARY KEY,
     SellerID INTEGER NOT NULL REFERENCES SELLER(SellerID) ON UPDATE CASCADE ON DELETE CASCADE,
     OrderID INTEGER REFERENCES ORDERS(OrderID) ON UPDATE CASCADE ON DELETE CASCADE,
-    DiscountCode VARCHAR(20) REFERENCES DISCOUNT(DiscountCode) ON UPDATE CASCADE ON DELETE CASCADE,
+    DiscountCode INTEGER REFERENCES DISCOUNT(DiscountCode) ON UPDATE CASCADE ON DELETE CASCADE,
     ISBN VARCHAR(20) NOT NULL,
     ShippingLocation VARCHAR(6) NOT NULL,
     ShippingMethod VARCHAR(2) NOT NULL,
@@ -141,8 +153,10 @@ CREATE TABLE BOOK (
 
 -- Insert fake data into BOOK table
 INSERT INTO BOOK (SellerID, OrderID, DiscountCode, ISBN, ShippingLocation, ShippingMethod, Name, BookPicture, Condition, Price, Description, Category) VALUES 
-('1', null, null, '978-3-16-148410-0', '台北市', '郵寄', '哈利波特', 'book01.jpg', '新', 500, '這是一本關於魔法的書。', 'Fantasy'),
-('2', null, null, '978-3-16-148411-7', '高雄市', '快遞', '小王子', 'book02.jpg', '二手', 300, '一本經典的兒童文學作品。', 'Children');
+(1, null, null, '978-3-16-148410-0', '台北市', '郵寄', '哈利波特', 'book01.jpg', '新', 500, '這是一本關於魔法的書。', 'Fantasy'),
+(2, null, null, '978-3-16-148411-7', '高雄市', '快遞', '小王子', 'book02.jpg', '二手', 300, '一本經典的兒童文學作品。', 'Children'),
+(2, 1, null, '978-3-16-148411-8', '高雄市', '快遞', '微積分', 'book03.jpg', '二手', 200, '北科大一微積分', 'Math'),
+(3, null, null, '978-3-16-148411-8', '高雄市', '快遞', '小王子', 'book04.jpg', '二手', 200, '一本經典的兒童文學作品。', 'Children');
 
 
 -- Create SHOPPING_CART table
@@ -153,7 +167,7 @@ CREATE TABLE SHOPPING_CART (
 
 -- Insert fake data into SHOPPING_CART table
 INSERT INTO SHOPPING_CART (CustomerID) VALUES
-('1');
+(1);
 
 -- Create LIKE_LIST TABLE
 CREATE TABLE LIKE_LIST (
@@ -164,18 +178,18 @@ CREATE TABLE LIKE_LIST (
 
 -- Insert fake data into LIKE_LIST table
 INSERT INTO LIKE_LIST (SellerID, CustomerID) VALUES
-('2', '1');
+(2, 1);
 
 -- Create APPLIED_LIST TABLE
 CREATE TABLE APPLIED_LIST (
     OrderID INTEGER REFERENCES ORDERS(OrderID) ON UPDATE CASCADE ON DELETE CASCADE,
-    DiscountCode VARCHAR(20) REFERENCES DISCOUNT(DiscountCode) ON UPDATE CASCADE ON DELETE CASCADE,
+    DiscountCode INTEGER REFERENCES DISCOUNT(DiscountCode) ON UPDATE CASCADE ON DELETE CASCADE,
     PRIMARY KEY (OrderID, DiscountCode)
 );
 
 -- Insert fake data into APPLIED_LIST table
 INSERT INTO APPLIED_LIST (OrderID, DiscountCode) VALUES
-('1', 'discount01');
+(1, 2);
 
 -- Create Cart_List TABLE
 CREATE TABLE Cart_List (
@@ -185,17 +199,18 @@ CREATE TABLE Cart_List (
 
 -- Insert fake data into Cart_List table
 INSERT INTO Cart_List VALUES 
-('1', '1'),
-('1', '2');
+(1, 1),
+(1, 2);
 
 
 -- Create SPECIALIZED TABLE
 CREATE TABLE SPECIALIZED (
-    DiscountCode VARCHAR(20) REFERENCES DISCOUNT(DiscountCode) ON UPDATE CASCADE ON DELETE CASCADE,
+    DiscountCode INTEGER REFERENCES DISCOUNT(DiscountCode) ON UPDATE CASCADE ON DELETE CASCADE,
     BookID INTEGER REFERENCES BOOK(BookID) ON UPDATE CASCADE ON DELETE CASCADE,
     PRIMARY KEY (DiscountCode, BookID)
 );
 
 -- Insert fake data into SPECIALIZED table
 INSERT INTO SPECIALIZED VALUES 
-('discount01', '1');
+(3, 2),
+(5, 1);
