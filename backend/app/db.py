@@ -30,3 +30,26 @@ class Book(ormar.Model):
     price: int = ormar.Integer()
     description: str = ormar.String(max_length=1000)
     category: str = ormar.String(max_length=50)
+
+metadata = sqlalchemy.MetaData()
+class ShoppingCart(ormar.Model):
+    class Meta(BaseMeta):
+        tablename = "shopping_cart"
+    shoppingcartid: int = ormar.Integer(primary_key=True)
+    customerid: int = ormar.Integer(foreign_key="customer.CustomerID")
+'''
+metadata = sqlalchemy.MetaData()
+class CartList(ormar.Model):
+    class Meta(BaseMeta):
+        tablename = "cart_list"
+    shoppingcartid = ormar.ForeignKey(ShoppingCart)
+    bookid = ormar.ForeignKey(Book)
+
+'''
+metadata = sqlalchemy.MetaData()
+class CartList(ormar.Model):
+    class Meta(BaseMeta):
+        tablename = "cart_list"
+    shoppingcartid: int = ormar.Integer(foreign_key="shopping_cart.ShoppingCartID")
+    bookid = ormar.ForeignKey(Book)
+    id: int = ormar.Integer(primary_key = True)
