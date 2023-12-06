@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI,Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field 
 from typing import Optional
 from app.db import database,Book
@@ -56,3 +57,7 @@ async def search_books_by_order(
 async def search_books(book_id: int):
     query = Book.objects.filter(bookid = book_id)
     return await query.all()
+
+@app.get("/img/{imgfilename}")
+async def get_imgs(imgfilename: str):
+    return FileResponse(f"./img/{imgfilename}")
