@@ -25,8 +25,16 @@ class Book(ormar.Model):
     shippinglocation: str = ormar.String(max_length=6)
     shippingmethod: str = ormar.String(max_length=2)
     name: str = ormar.String(max_length=100)
-    # bookpicture: str = ormar.String(max_length=200)
     condition: str = ormar.String(max_length=3)
     price: int = ormar.Integer()
     description: str = ormar.String(max_length=1000)
     category: str = ormar.String(max_length=50)
+    state: str = ormar.String(max_length=10)
+
+class PictureList(ormar.Model):
+    class Meta(BaseMeta):
+        tablename = "picture_list"
+        
+    pictureid: int = ormar.Integer(primary_key=True)
+    bookid: int = ormar.Integer(foreign_key="book.bookid")
+    picturepath: str = ormar.String(max_length=200)
