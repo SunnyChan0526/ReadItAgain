@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict
 from app.db import database, Book, ShoppingCart, CartList
 
 
@@ -41,9 +41,9 @@ class BookDetail(BaseModel):
 
 
 class ShoppingCartList(BaseModel):
-    shoppingCartid: int
-    items: list[BookDetail]
-    cartQuantity: int
+    name: str
+    bookpicture: str
+    price: int
 
 
 @app.get("/books/", response_model=list[BookSearch])
@@ -71,24 +71,24 @@ async def search_books(book_id: int):
     return await query.all()
 
 
-@app.get("/show-cart/{shoppingcard_id}", response_model=list[BookDetail])
-async def show_cart(shoppingcard_id: int):
+@app.get("/show-cart/{shoppingcart_id}", response_model=Dict[int, List[ShoppingCartList]])
+async def show_cart(shoppingcart_id: int):
+    cart_items = await CartList.objects.select_related("bookid").filter(shoppingcartid=shoppingcart_id).all()
 
-    cart_items = await CartList.objects.select_related("bookid").filter(shoppingcartid=shoppingcard_id).all()
+    categorized_books = {}
+    for item in cart_items:
+        seller_id = item.bookid.sellerid
 
-    books = [item.bookid for item in cart_items]
+        if seller_id not in categorized_books:
+            categorized_books[seller_id] = []
 
-    return books
-
-'''
-@app.post("/add-to-cart/{cart_id}")
-async def add_to_cart(cart_id: int, book_id: int):
-    book = await Book.objects.get_or_none(bookid=book_id)
-    if book:
-        await CartList.objects.create(shoppingcartid=cart_id, bookid=book_id)
-        return {"message": "Sucessfully addded !"}
-    return {"message": "Book not found"}
-'''
+        cart_details = ShoppingCartList(
+            name=item.bookid.name,
+            bookpicture=item.bookid.bookpicture,
+            price=item.bookid.price,
+        )
+        categorized_books[seller_id].append(cart_details)
+    return categorized_books
 
 
 @app.post("/add-to-cart/{cart_id}")
