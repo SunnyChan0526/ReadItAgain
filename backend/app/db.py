@@ -7,12 +7,16 @@ from .config import settings
 database = databases.Database(settings.db_url)
 metadata = sqlalchemy.MetaData()
 
+
 class BaseMeta(ormar.ModelMeta):
     metadata = metadata
     database = database
 
+
 # 創建 SQLAlchemy 的元數據實例
 metadata = sqlalchemy.MetaData()
+
+
 class Book(ormar.Model):
     class Meta(BaseMeta):
         tablename = "book"
@@ -20,7 +24,8 @@ class Book(ormar.Model):
     bookid: int = ormar.Integer(primary_key=True)
     sellerid: int = ormar.Integer(foreign_key="seller.SellerID")
     orderid: int = ormar.Integer(foreign_key="orders.OrderID", nullable=True)
-    discountcode: str = ormar.String(max_length=20, foreign_key="discount.DiscountCode", nullable=True)
+    discountcode: str = ormar.String(
+        max_length=20, foreign_key="discount.DiscountCode", nullable=True)
     isbn: str = ormar.String(max_length=20, unique=True)
     shippinglocation: str = ormar.String(max_length=6)
     shippingmethod: str = ormar.String(max_length=2)
@@ -31,25 +36,21 @@ class Book(ormar.Model):
     description: str = ormar.String(max_length=1000)
     category: str = ormar.String(max_length=50)
 
-metadata = sqlalchemy.MetaData()
+# metadata = sqlalchemy.MetaData()
+
+
 class ShoppingCart(ormar.Model):
     class Meta(BaseMeta):
         tablename = "shopping_cart"
     shoppingcartid: int = ormar.Integer(primary_key=True)
     customerid: int = ormar.Integer(foreign_key="customer.CustomerID")
-'''
-metadata = sqlalchemy.MetaData()
-class CartList(ormar.Model):
-    class Meta(BaseMeta):
-        tablename = "cart_list"
-    shoppingcartid = ormar.ForeignKey(ShoppingCart)
-    bookid = ormar.ForeignKey(Book)
 
-'''
-metadata = sqlalchemy.MetaData()
+
+# metadata = sqlalchemy.MetaData()
 class CartList(ormar.Model):
     class Meta(BaseMeta):
         tablename = "cart_list"
-    shoppingcartid: int = ormar.Integer(foreign_key="shopping_cart.ShoppingCartID")
+    shoppingcartid: int = ormar.Integer(
+        foreign_key="shopping_cart.ShoppingCartID")
     bookid = ormar.ForeignKey(Book)
-    id: int = ormar.Integer(primary_key = True)
+    id: int = ormar.Integer(primary_key=True)
