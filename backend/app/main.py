@@ -19,7 +19,7 @@ async def read_root():
 
 class BookSearch(BaseModel):
     name: str
-    bookpicture: str
+    # bookpicture: str
     condition: str
     price: int
     shippinglocation: str
