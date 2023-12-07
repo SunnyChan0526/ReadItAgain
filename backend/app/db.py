@@ -25,7 +25,7 @@ class Book(ormar.Model):
     shippinglocation: str = ormar.String(max_length=6)
     shippingmethod: str = ormar.String(max_length=2)
     name: str = ormar.String(max_length=100)
-    bookpicture: str = ormar.String(max_length=200)
+    # bookpicture: str = ormar.String(max_length=200)
     condition: str = ormar.String(max_length=3)
     price: int = ormar.Integer()
     description: str = ormar.String(max_length=1000)
