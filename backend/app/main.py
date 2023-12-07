@@ -5,7 +5,6 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict
 from app.db import database, Book, PictureList, ShoppingCart, CartList
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if not database.is_connected:
@@ -63,6 +62,7 @@ async def search_books_by_order(
         query = query.order_by('-price')
 
     if min_price is not None and max_price is not None:
+
         query = query.filter(price__gte=min_price, price__lte=max_price)
 
     books = await query.all()

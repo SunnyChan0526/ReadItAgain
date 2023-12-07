@@ -174,10 +174,6 @@ INSERT INTO PICTURE_LIST (BookID, PicturePath) VALUES
 (3, 'book03_02.jpg'),
 (4, 'book04.jpg');
 
-
-
-
-
 -- Create SHOPPING_CART table
 CREATE TABLE SHOPPING_CART (
     ShoppingCartID SERIAL PRIMARY KEY,
