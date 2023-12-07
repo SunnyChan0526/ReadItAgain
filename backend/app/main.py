@@ -55,7 +55,7 @@ async def search_books_by_order(
     max_price: Optional[int] = Query(None, description="Maximum price")
 ):
     query = Book.objects.filter(name__icontains=name).filter(state='on sale')
-
+    
     if sort_by == 'price_ascending':
         query = query.order_by('price')
     elif sort_by == 'price_descending':
