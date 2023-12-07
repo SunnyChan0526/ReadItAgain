@@ -144,19 +144,39 @@ CREATE TABLE BOOK (
     ShippingLocation VARCHAR(6) NOT NULL,
     ShippingMethod VARCHAR(2) NOT NULL,
     Name VARCHAR(100) NOT NULL,
-    BookPicture VARCHAR(200) NOT NULL,
     Condition VARCHAR(3) NOT NULL,
     Price INTEGER NOT NULL,
     Description VARCHAR(1000) NOT NULL,
-    Category VARCHAR(50) NOT NULL
+    Category VARCHAR(50) NOT NULL,
+    State VARCHAR(20) NOT NULL
 );
 
 -- Insert fake data into BOOK table
-INSERT INTO BOOK (SellerID, OrderID, DiscountCode, ISBN, ShippingLocation, ShippingMethod, Name, BookPicture, Condition, Price, Description, Category) VALUES 
-(1, null, null, '978-3-16-148410-0', '台北市', '郵寄', '哈利波特', '/backend/img/book01.jpg', '新', 500, '這是一本關於魔法的書。', 'Fantasy'),
-(2, null, null, '978-3-16-148411-7', '高雄市', '快遞', '小王子', '/backend/img/book02_01.jpg\ /backend/img/book02_02.jpg', '二手', 300, '一本經典的兒童文學作品。', 'Children'),
-(2, 1, null, '978-3-16-148411-8', '高雄市', '快遞', '微積分', '/backend/img/S__68263953.jpg', '二手', 200, '北科大一微積分', 'Math'),
-(3, null, null, '978-3-16-148411-8', '高雄市', '快遞', '小王子', '/backend/img/book03.jpg', '二手', 200, '一本經典的兒童文學作品。', 'Children');
+INSERT INTO BOOK (SellerID, OrderID, DiscountCode, ISBN, ShippingLocation, ShippingMethod, Name, Condition, Price, Description, Category, State) VALUES 
+(1, null, null, '978-3-16-148410-0', '台北市', '郵寄', '哈利波特', '新', 500, '這是一本關於魔法的書。', 'Fantasy', 'on sale'),
+(2, null, null, '978-3-16-148411-7', '高雄市', '快遞', '小王子', '二手', 300, '一本經典的兒童文學作品。', 'Children', 'on sale'),
+(2, 1, null, '978-3-16-148411-8', '高雄市', '快遞', '微積分', '二手', 200, '北科大一微積分', 'Math', 'sold'),
+(3, null, null, '978-3-16-148411-8', '高雄市', '快遞', '小王子', '二手', 200, '一本經典的兒童文學作品。', 'Children', 'on sale');
+
+-- Create SHOPPING_CART table
+CREATE TABLE PICTURE_LIST (
+    PictureID SERIAL PRIMARY KEY,
+    BookID INTEGER NOT NULL REFERENCES BOOK(BookID) ON UPDATE CASCADE ON DELETE CASCADE,
+    PicturePath VARCHAR(200) NOT NULL
+);
+
+-- Insert fake data into SHOPPING_CART table
+INSERT INTO PICTURE_LIST (BookID, PicturePath) VALUES
+(1, 'book01.jpg'),
+(2, 'book02_01.jpg'),
+(2, 'book02_02.jpg'),
+(3, 'book03_01.jpg'),
+(3, 'book03_02.jpg'),
+(4, 'book04.jpg');
+
+
+
+
 
 -- Create SHOPPING_CART table
 CREATE TABLE SHOPPING_CART (
@@ -198,7 +218,7 @@ CREATE TABLE Cart_List (
 );
 
 -- Insert fake data into Cart_List table
-INSERT INTO Cart_List(ShoppingCartID, BookID) VALUES 
+INSERT INTO Cart_List VALUES 
 (1, 1),
 (1, 2);
 
