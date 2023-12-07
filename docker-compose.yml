@@ -1,11 +1,11 @@
 version: '3.8'
 services:
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
+  # frontend:
+  #   build: ./frontend
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - backend
 
   backend:
     build: ./backend
@@ -18,7 +18,7 @@ services:
       - DATABASE_URL=postgresql://admin:devpass@db:5432/readitagain-data
     depends_on:
       - db
-      - redis
+      # - redis
 
   db:
     image: postgres:16
@@ -33,10 +33,10 @@ services:
     volumes:
       - ./schema/init.sql:/docker-entrypoint-initdb.d/init.sql
 
-  redis:
-    image: redis:alpine
-    volumes:
-      - redis_data:/data
+  # redis:
+  #   image: redis:alpine
+  #   volumes:
+  #     - redis_data:/data
 
 volumes:
   postgres_data:
