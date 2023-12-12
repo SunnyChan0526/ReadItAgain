@@ -12,6 +12,7 @@ from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart
 from app.models import BookSearch, BookDetail, ShoppingCartList, Token
 from .config import settings
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
@@ -21,11 +22,14 @@ app = FastAPI(lifespan=lifespan)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
+
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
+
 def get_password_hash(password):
     return pwd_context.hash(password)
+
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
@@ -34,19 +38,22 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     else:
         expire = datetime.utcnow() + timedelta(minutes=15)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+    encoded_jwt = jwt.encode(
+        to_encode, settings.secret_key, algorithm=settings.algorithm)
     return encoded_jwt
+
 
 async def get_current_user(token: str = Security(oauth2_scheme)):
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        payload = jwt.decode(token, settings.secret_key,
+                             algorithms=[settings.algorithm])
         username: str = payload.get("sub")
         if username is None:
             raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         return username
     except JWTError:
         raise HTTPException(
@@ -55,32 +62,35 @@ async def get_current_user(token: str = Security(oauth2_scheme)):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+
 @app.get("/")
 async def read_root():
     return "testroot"
+
 
 @app.post("/register")
 async def register(member: Member, session: AsyncSession = Depends(get_session)):
     hashed_password = get_password_hash(member.password)
     member = Member(
-            memberaccount=member.memberaccount, 
-            password=hashed_password, 
-            name=member.name, 
-            gender=member.gender, 
-            phone=member.phone, 
-            email=member.email, 
-            birthdate=date.fromisoformat(member.birthdate), 
-            verified="未認證", 
-            usertype="Standard", 
-            address="", 
-            selfintroduction="", 
-            profilepicture="", 
-            authority=""
-        )
+        memberaccount=member.memberaccount,
+        password=hashed_password,
+        name=member.name,
+        gender=member.gender,
+        phone=member.phone,
+        email=member.email,
+        birthdate=date.fromisoformat(member.birthdate),
+        verified="未認證",
+        usertype="Standard",
+        address="",
+        selfintroduction="",
+        profilepicture="",
+        authority=""
+    )
     session.add(member)
     await session.commit()
     await session.refresh(member)
     return member
+
 
 @app.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), session: AsyncSession = Depends(get_session)):
@@ -94,12 +104,14 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             headers={"WWW-Authenticate": "Bearer"},
         )
     # 設定令牌過期時間
-    access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
+    access_token_expires = timedelta(
+        minutes=settings.access_token_expire_minutes)
     # 創建令牌
     access_token = create_access_token(
         data={"sub": user.memberaccount}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
 
 @app.get("/books/", response_model=list[BookSearch])
 async def search_books_by_order(
@@ -109,8 +121,9 @@ async def search_books_by_order(
     max_price: Optional[int] = Query(None, description="Maximum price"),
     session: AsyncSession = Depends(get_session)
 ):
-    query = select(Book).where(Book.name.contains(name), Book.state == 'on sale')
-    
+    query = select(Book).where(
+        Book.name.contains(name), Book.state == 'on sale')
+
     if sort_by == 'price_ascending':
         query = query.order_by(Book.price)
     elif sort_by == 'price_descending':
@@ -138,6 +151,7 @@ async def search_books_by_order(
         book_list.append(book_search)
 
     return book_list
+
 
 @app.get("/user/books")
 async def get_user_books(token: str, session: AsyncSession = Depends(get_session)):
@@ -185,9 +199,20 @@ async def get_imgs(imgfilename: str):
     return FileResponse(f"./img/{imgfilename}")
 
 
-@app.get("/show-cart/{shoppingcart_id}", response_model=Dict[int, List[ShoppingCartList]])
-async def show_cart(shoppingcart_id: int, session: AsyncSession = Depends(get_session)):
-    cart_items = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == shoppingcart_id))
+@app.get("/show-cart", response_model=Dict[int, List[ShoppingCartList]])
+async def show_cart(token: str, session: AsyncSession = Depends(get_session)):
+    token = await get_current_user(token)
+    user = await session.scalars(select(Member).where(Member.memberaccount == token))
+    user = user.first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart. customerid == user.userid))
+    shoppingCart = shoppingCart.first()
+    if not shoppingCart:
+        raise HTTPException(status_code=404, detail="shoppingCart not found")
+
+    cart_items = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == shoppingCart. shoppingcartid))
     cart_items = cart_items.all()
 
     categorized_books = {}
@@ -195,7 +220,6 @@ async def show_cart(shoppingcart_id: int, session: AsyncSession = Depends(get_se
         book = await session.scalars(select(Book).where(Book.bookid == item.bookid))
         book = book.first()
         seller_id = book.sellerid
-
         if seller_id not in categorized_books:
             categorized_books[seller_id] = []
 
@@ -210,9 +234,20 @@ async def show_cart(shoppingcart_id: int, session: AsyncSession = Depends(get_se
     return categorized_books
 
 
-@app.post("/add-to-cart/{cart_id}")
-async def add_to_cart(cart_id: int, book_id: int, session: AsyncSession = Depends(get_session)):
-    item_exists = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == cart_id, Cart_List.bookid == book_id))
+@app.post("/add-to-cart/{book_id}")
+async def add_to_cart(token: str, book_id: int, session: AsyncSession = Depends(get_session)):
+    token = await get_current_user(token)
+    user = await session.scalars(select(Member).where(Member.memberaccount == token))
+    user = user.first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart. customerid == user.userid))
+    shoppingCart = shoppingCart.first()
+    if not shoppingCart:
+        raise HTTPException(status_code=404, detail="shoppingCart not found")
+
+    item_exists = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == Shopping_Cart. shoppingcartid, Cart_List.bookid == book_id))
     item_exists = item_exists.first() is not None
     if item_exists:
         return {"message": "Book already exists in the cart"}
@@ -220,7 +255,8 @@ async def add_to_cart(cart_id: int, book_id: int, session: AsyncSession = Depend
     book = await session.scalars(select(Book).where(Book.bookid == book_id))
     book = book.first()
     if book:
-        new_item = Cart_List(shoppingcartid=cart_id, bookid=book_id)
+        new_item = Cart_List(
+            shoppingcartid=Shopping_Cart. shoppingcartid, bookid=book_id)
         session.add(new_item)
         await session.commit()
         await session.refresh(new_item)
@@ -228,20 +264,31 @@ async def add_to_cart(cart_id: int, book_id: int, session: AsyncSession = Depend
     return {"message": "Book not found"}
 
 
-@app.delete("/remove-from-cart/{card_id}/{book_id}")
-async def remove_from_cart(cart_id: int, book_id: int, session: AsyncSession = Depends(get_session)):
-    item_exists = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == cart_id, Cart_List.bookid == book_id))
+@app.delete("/remove-from-cart/{book_id}")
+async def remove_from_cart(token: str, book_id: int, session: AsyncSession = Depends(get_session)):
+    token = await get_current_user(token)
+    user = await session.scalars(select(Member).where(Member.memberaccount == token))
+    user = user.first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart. customerid == user.userid))
+    shoppingCart = shoppingCart.first()
+    if not shoppingCart:
+        raise HTTPException(status_code=404, detail="shoppingCart not found")
+
+    item_exists = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == Shopping_Cart. shoppingcartid, Cart_List.bookid == book_id))
     item_exists = item_exists.first()
 
     if not item_exists:
-        return {"message": f"Book {book_id} not found in cart {cart_id}"}
+        return {"message": f"Book {book_id} not found in cart {Shopping_Cart. shoppingcartid}"}
 
     await session.delete(item_exists)
     await session.commit()
 
-    item_still_exists = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == cart_id, Cart_List.bookid == book_id))
+    item_still_exists = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == Shopping_Cart. shoppingcartid, Cart_List.bookid == book_id))
     item_still_exists = item_still_exists.first()
     if item_still_exists:
-        return {"message": f"Failed to remove book {book_id} from cart {cart_id}"}
+        return {"message": f"Failed to remove book {book_id} from cart {Shopping_Cart. shoppingcartid}"}
     else:
-        return {"message": f"Successfully removed book {book_id} from cart {cart_id}"}
+        return {"message": f"Successfully removed book {book_id} from cart {Shopping_Cart. shoppingcartid}"}
