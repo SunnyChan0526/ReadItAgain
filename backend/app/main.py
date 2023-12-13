@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Query, Depends, HTTPException, status, Security
+from fastapi import FastAPI, Query, Depends, HTTPException, status, Security, UploadFile
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import FileResponse
 from passlib.context import CryptContext
@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller
 from app.models import BookSearch, BookDetail, ShoppingCartList, Token
 from .config import settings
+import shutil
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -294,3 +295,28 @@ async def remove_from_cart(token: str, book_id: int, session: AsyncSession = Dep
         return {"message": f"Failed to remove book {book_id} from cart {shoppingCart.shoppingcartid}"}
     else:
         return {"message": f"Successfully removed book {book_id} from cart {shoppingCart.shoppingcartid}"}
+
+
+@app.post("/profile/avatar")
+async def upload_avatar(
+    token: str,
+    avatar: UploadFile,
+    session: AsyncSession = Depends(get_session)
+):
+    token = await get_current_user(token)
+    user = await session.scalars(select(Member).where(Member.memberaccount == token))
+    user = user.first()
+
+    # todo: delete origin picture in the img path
+    if avatar.content_type.startswith('image'):
+        file_location = f"./img/avatar/{token}.{avatar.content_type.split('/')[1]}"
+        with open(file_location, "wb") as file_object:
+            shutil.copyfileobj(avatar.file, file_object)
+
+        # 更新用戶的 ProfilePicture
+        user.profilepicture = avatar.filename
+        await session.commit()
+    else:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="avatar should be an image")
+
+    return {"message": "avatar upload successfully"}
