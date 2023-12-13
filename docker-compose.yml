@@ -15,7 +15,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://admin:devpass@db:5432/readitagain-data
+      - DATABASE_URL=postgresql+asyncpg://admin:devpass@db:5432/readitagain-data
     depends_on:
       - db
       - redis
