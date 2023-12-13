@@ -280,18 +280,18 @@ async def remove_from_cart(token: str, book_id: int, session: AsyncSession = Dep
     if not shoppingCart:
         raise HTTPException(status_code=404, detail="shoppingCart not found")
 
-    item_exists = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == Shopping_Cart. shoppingcartid, Cart_List.bookid == book_id))
+    item_exists = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == shoppingCart.shoppingcartid, Cart_List.bookid == book_id))
     item_exists = item_exists.first()
 
     if not item_exists:
-        return {"message": f"Book {book_id} not found in cart {Shopping_Cart. shoppingcartid}"}
+        return {"message": f"Book {book_id} not found in cart {shoppingCart.shoppingcartid}"}
 
     await session.delete(item_exists)
     await session.commit()
 
-    item_still_exists = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == Shopping_Cart. shoppingcartid, Cart_List.bookid == book_id))
+    item_still_exists = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == shoppingCart.shoppingcartid, Cart_List.bookid == book_id))
     item_still_exists = item_still_exists.first()
     if item_still_exists:
-        return {"message": f"Failed to remove book {book_id} from cart {Shopping_Cart. shoppingcartid}"}
+        return {"message": f"Failed to remove book {book_id} from cart {shoppingCart.shoppingcartid}"}
     else:
-        return {"message": f"Successfully removed book {book_id} from cart {Shopping_Cart. shoppingcartid}"}
+        return {"message": f"Successfully removed book {book_id} from cart {shoppingCart.shoppingcartid}"}
