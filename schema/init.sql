@@ -5,7 +5,7 @@
 CREATE TABLE MEMBER (
     UserID SERIAL PRIMARY KEY,
     MemberAccount VARCHAR(20) UNIQUE NOT NULL,
-    Password VARCHAR(50) NOT NULL,
+    Password VARCHAR(60) NOT NULL,
     Name VARCHAR(50) NOT NULL,
     Gender VARCHAR(2) NOT NULL,
     RegistrationTime TIMESTAMP NOT NULL,
