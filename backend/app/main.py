@@ -89,6 +89,7 @@ async def register(member: Member, session: AsyncSession = Depends(get_session))
     session.add(member)
     await session.commit()
     await session.refresh(member)
+
     return member
 
 
@@ -212,7 +213,7 @@ async def show_cart(token: str, session: AsyncSession = Depends(get_session)):
     if not shoppingCart:
         raise HTTPException(status_code=404, detail="shoppingCart not found")
 
-    cart_items = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == shoppingCart. shoppingcartid))
+    cart_items = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == shoppingCart.shoppingcartid))
     cart_items = cart_items.all()
 
     categorized_books = {}
@@ -246,14 +247,12 @@ async def add_to_cart(token: str, book_id: int, session: AsyncSession = Depends(
     shoppingCart = shoppingCart.first()
 
     if not shoppingCart:
-        Cart = Shopping_Cart(user.userid)
+        Cart = Shopping_Cart(customerid=user.userid)
         session.add(Cart)
         await session.commit()
         await session.refresh(Cart)
 
-        return {"message": "happy birthday to Shopping cart"}
-
-    item_exists = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == Shopping_Cart. shoppingcartid, Cart_List.bookid == book_id))
+    item_exists = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == Shopping_Cart.shoppingcartid, Cart_List.bookid == book_id))
     item_exists = item_exists.first() is not None
     if item_exists:
         return {"message": "Book already exists in the cart"}
@@ -262,7 +261,7 @@ async def add_to_cart(token: str, book_id: int, session: AsyncSession = Depends(
     book = book.first()
     if book:
         new_item = Cart_List(
-            shoppingcartid=Shopping_Cart. shoppingcartid, bookid=book_id)
+            shoppingcartid=Shopping_Cart.shoppingcartid, bookid=Book.bookid)
         session.add(new_item)
         await session.commit()
         await session.refresh(new_item)
