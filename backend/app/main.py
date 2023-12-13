@@ -12,7 +12,6 @@ from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart
 from app.models import BookSearch, BookDetail, ShoppingCartList, Token
 from .config import settings
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
