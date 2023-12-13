@@ -242,10 +242,16 @@ async def add_to_cart(token: str, book_id: int, session: AsyncSession = Depends(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart. customerid == user.userid))
+    shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart.customerid == user.userid))
     shoppingCart = shoppingCart.first()
+
     if not shoppingCart:
-        raise HTTPException(status_code=404, detail="shoppingCart not found")
+        Cart = Shopping_Cart(user.userid)
+        session.add(Cart)
+        await session.commit()
+        await session.refresh(Cart)
+
+        return {"message": "happy birthday to Shopping cart"}
 
     item_exists = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == Shopping_Cart. shoppingcartid, Cart_List.bookid == book_id))
     item_exists = item_exists.first() is not None
