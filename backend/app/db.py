@@ -16,11 +16,11 @@ class Member(SQLModel, table=True):
     phone: str = Field(max_length=20, sa_column_kwargs={"unique": True})
     email: str = Field(max_length=100, sa_column_kwargs={"unique": True})
     birthdate: date
-    address: Optional[str] = Field(max_length=200)
+    address: Optional[str] = Field(default=None, max_length=200)
     usertype: str = Field(max_length=20)
-    selfintroduction: Optional[str] = Field(max_length=500)
-    profilepicture: Optional[str] = Field(max_length=200)
-    authority: Optional[str] = Field(max_length=100, sa_column_kwargs={"unique": True})
+    selfintroduction: Optional[str] = Field(default=None, max_length=500)
+    profilepicture: Optional[str] = Field(default=None, max_length=200)
+    authority: Optional[str] = Field(default=None, max_length=100, sa_column_kwargs={"unique": True})
 
     # Relationships
     customer: Optional["Customer"] = Relationship(back_populates="member")

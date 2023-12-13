@@ -80,11 +80,7 @@ async def register(member: Member, session: AsyncSession = Depends(get_session))
         email=member.email,
         birthdate=date.fromisoformat(member.birthdate),
         verified="未認證",
-        usertype="Standard",
-        address="",
-        selfintroduction="",
-        profilepicture="",
-        authority=""
+        usertype="Standard"
     )
     session.add(member)
     await session.commit()
@@ -251,8 +247,10 @@ async def add_to_cart(token: str, book_id: int, session: AsyncSession = Depends(
         session.add(Cart)
         await session.commit()
         await session.refresh(Cart)
+    shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart.customerid == user.userid))
+    shoppingCart = shoppingCart.first()
 
-    item_exists = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == Shopping_Cart.shoppingcartid, Cart_List.bookid == book_id))
+    item_exists = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == shoppingCart.shoppingcartid, Cart_List.bookid == book_id))
     item_exists = item_exists.first() is not None
     if item_exists:
         return {"message": "Book already exists in the cart"}
@@ -261,7 +259,7 @@ async def add_to_cart(token: str, book_id: int, session: AsyncSession = Depends(
     book = book.first()
     if book:
         new_item = Cart_List(
-            shoppingcartid=Shopping_Cart.shoppingcartid, bookid=Book.bookid)
+            shoppingcartid=shoppingCart.shoppingcartid, bookid=book.bookid)
         session.add(new_item)
         await session.commit()
         await session.refresh(new_item)
