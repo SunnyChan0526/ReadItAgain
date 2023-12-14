@@ -328,7 +328,8 @@ async def view_profile(token: str, session: AsyncSession = Depends(get_session))
         birthdate = user.birthdate,
         profilepicture = user.profilepicture if user.profilepicture!=None else "default.jpg"
     )
-    
+
+  
 @app.post("/profile/upload_avatar")
 async def upload_avatar(
     token: str,
@@ -351,5 +352,7 @@ async def upload_avatar(
 
     return {"message": "avatar upload successfully"}
 
+
 # @app.post("/profile/edit")
 # async def edit_profile():
+
