@@ -297,7 +297,7 @@ async def remove_from_cart(token: str, book_id: int, session: AsyncSession = Dep
         return {"message": f"Successfully removed book {book_id} from cart {shoppingCart.shoppingcartid}"}
 
 
-@app.post("/profile/avatar")
+@app.post("/profile/upload_avatar")
 async def upload_avatar(
     token: str,
     avatar: UploadFile,
@@ -320,3 +320,38 @@ async def upload_avatar(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="avatar should be an image")
 
     return {"message": "avatar upload successfully"}
+
+@app.get("/address/show", response_model=Dict[int, List[ShoppingCartList]])
+async def show_address(token: str, session: AsyncSession = Depends(get_session)):
+    token = await get_current_user(token)
+    user = await session.scalars(select(Member).where(Member.memberaccount == token))
+    user = user.first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # code below should be modified 
+    shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart. customerid == user.userid))
+    shoppingCart = shoppingCart.first()
+    if not shoppingCart:
+        raise HTTPException(status_code=404, detail="shoppingCart not found")
+
+    cart_items = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == shoppingCart.shoppingcartid))
+    cart_items = cart_items.all()
+
+    categorized_books = {}
+    for item in cart_items:
+        book = await session.scalars(select(Book).where(Book.bookid == item.bookid))
+        book = book.first()
+        seller_id = book.sellerid
+        if seller_id not in categorized_books:
+            categorized_books[seller_id] = []
+
+        picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == item.bookid).order_by(Picture_List.pictureid))
+        picture = picture.first()
+        cart_details = ShoppingCartList(
+            name=book.name,
+            picturepath=picture.picturepath if picture else "",
+            price=book.price
+        )
+        categorized_books[seller_id].append(cart_details)
+    return categorized_books

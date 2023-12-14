@@ -16,7 +16,6 @@ class Member(SQLModel, table=True):
     phone: str = Field(max_length=20, sa_column_kwargs={"unique": True})
     email: str = Field(max_length=100, sa_column_kwargs={"unique": True})
     birthdate: date
-    address: Optional[str] = Field(default=None, max_length=200)
     usertype: str = Field(max_length=20)
     selfintroduction: Optional[str] = Field(default=None, max_length=500)
     profilepicture: Optional[str] = Field(default=None, max_length=200)
@@ -146,6 +145,17 @@ class Cart_List(SQLModel, table=True):
     # Relationships
     shopping_cart: Shopping_Cart = Relationship(back_populates="cart_list")
     book: Book = Relationship(back_populates="cart_list")
+
+class Address_List(SQLModel, table=True):
+    shoppingcartid: int = Field(default=None, primary_key=True)
+    customerid: int = Field(default=None, foreign_key="customer.customerid")
+    address: str = Field(default=None, max_length=200)
+    defaultaddress: bool = Field(default=False)
+    shippingoption: str = Field(default=None, max_length=50)
+
+    # Relationships
+    customer: Customer = Relationship(back_populates="address_list")
+
 
 class Specialized(SQLModel, table=True):
     discountcode: int = Field(default=None, primary_key=True, foreign_key="discount.discountcode")
