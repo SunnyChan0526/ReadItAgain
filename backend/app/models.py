@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from datetime import datetime, date
 
 class BookSearch(BaseModel):
     name: str
@@ -29,3 +30,12 @@ class ShoppingCartList(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+class Profile(BaseModel):
+    userid: int
+    name: str
+    email: str
+    phone: str
+    gender: str
+    birthdate: date
+    profilepicture: str
