@@ -7,9 +7,10 @@ from datetime import datetime, timedelta, date
 from jose import JWTError, jwt
 from typing import Optional, List, Dict
 from sqlmodel import select
+from sqlalchemy import update, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller
-from app.models import BookSearch, BookDetail, ShoppingCartList, Token
+from app.models import BookSearch, BookDetail, ShoppingCartList, Token, Profile
 from .config import settings
 import shutil
 
@@ -62,6 +63,13 @@ async def get_current_user(token: str = Security(oauth2_scheme)):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+async def get_current_user_data(token: str, session: AsyncSession = Depends(get_session)):
+    token = await get_current_user(token)
+    user = await session.scalars(select(Member).where(Member.memberaccount == token))
+    user = user.first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
 
 @app.get("/")
 async def read_root():
@@ -296,6 +304,39 @@ async def remove_from_cart(token: str, book_id: int, session: AsyncSession = Dep
     else:
         return {"message": f"Successfully removed book {book_id} from cart {shoppingCart.shoppingcartid}"}
 
+## my account   
+@app.post("/change_password")
+async def change_password(
+    token: str,
+    origin_password: str = Query(None), 
+    new_password: str = Query(None), 
+    new_password_check: str = Query(None), 
+    session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+    if(verify_password(origin_password, user.password)):
+        if(new_password == new_password_check):
+            hashed_password = get_password_hash(new_password)
+            stmt = update(Member).where(Member.userid == user.userid).values(password = hashed_password)
+            await session.execute(stmt)
+            await session.commit()
+            return {"origin password": origin_password, "new password": new_password} #還沒回傳改動後的密碼
+        else:
+            return "The passwords entered are different"
+    else:
+        return "the origin password is incorrect"
+    
+@app.get("/profile/view", response_model=Profile)
+async def view_profile(token: str, session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+    return Profile(
+        userid = user.userid,
+        name = user.memberaccount,
+        email = user.email,
+        phone = user.phone,
+        gender = user.gender,
+        birthdate = user.birthdate,
+        profilepicture = user.profilepicture if user.profilepicture!=None else "default.jpg"
+    )
 
 @app.post("/profile/upload_avatar")
 async def upload_avatar(
@@ -303,9 +344,7 @@ async def upload_avatar(
     avatar: UploadFile,
     session: AsyncSession = Depends(get_session)
 ):
-    token = await get_current_user(token)
-    user = await session.scalars(select(Member).where(Member.memberaccount == token))
-    user = user.first()
+    user = await get_current_user_data(token, session)
 
     # todo: delete origin picture in the img path
     if avatar.content_type.startswith('image'):
@@ -321,37 +360,3 @@ async def upload_avatar(
 
     return {"message": "avatar upload successfully"}
 
-@app.get("/address/show", response_model=Dict[int, List[ShoppingCartList]])
-async def show_address(token: str, session: AsyncSession = Depends(get_session)):
-    token = await get_current_user(token)
-    user = await session.scalars(select(Member).where(Member.memberaccount == token))
-    user = user.first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # code below should be modified 
-    shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart. customerid == user.userid))
-    shoppingCart = shoppingCart.first()
-    if not shoppingCart:
-        raise HTTPException(status_code=404, detail="shoppingCart not found")
-
-    cart_items = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == shoppingCart.shoppingcartid))
-    cart_items = cart_items.all()
-
-    categorized_books = {}
-    for item in cart_items:
-        book = await session.scalars(select(Book).where(Book.bookid == item.bookid))
-        book = book.first()
-        seller_id = book.sellerid
-        if seller_id not in categorized_books:
-            categorized_books[seller_id] = []
-
-        picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == item.bookid).order_by(Picture_List.pictureid))
-        picture = picture.first()
-        cart_details = ShoppingCartList(
-            name=book.name,
-            picturepath=picture.picturepath if picture else "",
-            price=book.price
-        )
-        categorized_books[seller_id].append(cart_details)
-    return categorized_books
