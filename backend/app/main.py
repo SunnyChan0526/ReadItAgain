@@ -9,7 +9,7 @@ from typing import Optional, List, Dict
 from sqlmodel import select
 from sqlalchemy import update, insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller
+from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer
 from app.models import BookSearch, BookDetail, ShoppingCartList, Token, Profile
 from .config import settings
 import shutil
@@ -75,7 +75,14 @@ async def get_current_user_data(token: str, session: AsyncSession = Depends(get_
 async def read_root():
     return "testroot"
 
+@app.get("/img")
+async def get_imgs(type: str, imgfilename: str):
+    if(type == 'book'):
+        return FileResponse(f"./img/book/{imgfilename}")
+    elif(type == 'avatar'):
+        return FileResponse(f"./img/avatar/{imgfilename}")
 
+## Authentication and Authorization
 @app.post("/register")
 async def register(member: Member, session: AsyncSession = Depends(get_session)):
     hashed_password = get_password_hash(member.password)
@@ -88,12 +95,14 @@ async def register(member: Member, session: AsyncSession = Depends(get_session))
         email=member.email,
         birthdate=date.fromisoformat(member.birthdate),
         verified="未認證",
-        usertype="Standard"
+        usertype="Standard",
     )
     session.add(member)
     await session.commit()
     await session.refresh(member)
-
+    stmt = insert(Seller).values(sellerid=member.userid)
+    await session.execute(stmt)
+    await session.commit()
     return member
 
 
@@ -117,7 +126,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-
+## book search
 @app.get("/books/", response_model=list[BookSearch])
 async def search_books_by_order(
     name: str = Query(None, min_length=3),
@@ -161,11 +170,7 @@ async def search_books_by_order(
 @app.get("/user/books")
 async def get_user_books(token: str, session: AsyncSession = Depends(get_session)):
     # 根據 user_id 獲取 Seller
-    token = await get_current_user(token)
-    user = await session.scalars(select(Member).where(Member.memberaccount == token))
-    user = user.first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = await get_current_user_data(token, session)
 
     seller = await session.scalars(select(Seller).where(Seller.sellerid == user.userid))
     seller = seller.first()
@@ -198,21 +203,12 @@ async def get_book_details(book_id: int, session: AsyncSession = Depends(get_ses
         bookpictures=[p.picturepath for p in pictures]
     )
 
-
-@app.get("/img/{imgfilename}")
-async def get_imgs(imgfilename: str):
-    return FileResponse(f"./img/{imgfilename}")
-
-
+## shopping cart
 @app.get("/show-cart", response_model=Dict[int, List[ShoppingCartList]])
 async def show_cart(token: str, session: AsyncSession = Depends(get_session)):
-    token = await get_current_user(token)
-    user = await session.scalars(select(Member).where(Member.memberaccount == token))
-    user = user.first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = await get_current_user_data(token, session)
 
-    shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart. customerid == user.userid))
+    shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart.customerid == user.userid))
     shoppingCart = shoppingCart.first()
     if not shoppingCart:
         raise HTTPException(status_code=404, detail="shoppingCart not found")
@@ -241,16 +237,15 @@ async def show_cart(token: str, session: AsyncSession = Depends(get_session)):
 
 @app.post("/add-to-cart/{book_id}")
 async def add_to_cart(token: str, book_id: int, session: AsyncSession = Depends(get_session)):
-    token = await get_current_user(token)
-    user = await session.scalars(select(Member).where(Member.memberaccount == token))
-    user = user.first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = await get_current_user_data(token, session)
 
     shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart.customerid == user.userid))
     shoppingCart = shoppingCart.first()
 
     if not shoppingCart:
+        stmt = insert(Customer).values(customerid=user.userid)
+        await session.execute(stmt)
+        await session.commit()
         Cart = Shopping_Cart(customerid=user.userid)
         session.add(Cart)
         await session.commit()
@@ -277,11 +272,7 @@ async def add_to_cart(token: str, book_id: int, session: AsyncSession = Depends(
 
 @app.delete("/remove-from-cart/{book_id}")
 async def remove_from_cart(token: str, book_id: int, session: AsyncSession = Depends(get_session)):
-    token = await get_current_user(token)
-    user = await session.scalars(select(Member).where(Member.memberaccount == token))
-    user = user.first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = await get_current_user_data(token, session)
 
     shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart. customerid == user.userid))
     shoppingCart = shoppingCart.first()
@@ -338,6 +329,7 @@ async def view_profile(token: str, session: AsyncSession = Depends(get_session))
         profilepicture = user.profilepicture if user.profilepicture!=None else "default.jpg"
     )
 
+  
 @app.post("/profile/upload_avatar")
 async def upload_avatar(
     token: str,
@@ -359,4 +351,8 @@ async def upload_avatar(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="avatar should be an image")
 
     return {"message": "avatar upload successfully"}
+
+
+# @app.post("/profile/edit")
+# async def edit_profile():
 
