@@ -366,33 +366,29 @@ async def upload_avatar(
     session: AsyncSession = Depends(get_session)
 ):
     user = await get_current_user_data(token, session)
-
     # todo: delete origin picture in the img path
     if avatar.content_type.startswith('image'):
-        file_location = f"./img/avatar/{token}.{avatar.content_type.split('/')[1]}"
+        img_type = avatar.content_type.split('/')[1]
+        file_location = f"./img/avatar/{user.memberaccount}.{img_type}"
         with open(file_location, "wb") as file_object:
             shutil.copyfileobj(avatar.file, file_object)
 
         # 更新用戶的 ProfilePicture
-        user.profilepicture = avatar.filename
+        user.profilepicture = user.memberaccount + '.'+ img_type
         await session.commit()
     else:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="avatar should be an image")
 
-    return {"message": f"avatar {avatar} upload successfully"}
+    return {"message": "avatar upload successfully"}
 
 # address
 @app.get("/address/show", response_model=Dict[str, List[Address]])
 async def show_address(token: str, session: AsyncSession = Depends(get_session)):
     user = await get_current_user_data(token, session)
-
-    # code below should be modified
     addresses = await session.scalars(select(Address_List).where(Address_List.customerid == user.userid))
     addresses = addresses.all()
     if not addresses:
-        # return empty dict
         return {}
-
     # shippingoption: list[address]
     categorized_addresses = {}
     for addr in addresses:
