@@ -26,6 +26,7 @@ class Member(SQLModel, table=True):
     seller: Optional["Seller"] = Relationship(back_populates="member")
     administrator: Optional["Administrator"] = Relationship(back_populates="member")
 
+
 class Customer(SQLModel, table=True):
     customerid: int = Field(default=None, primary_key=True, foreign_key="member.userid")
     # Relationships
@@ -33,6 +34,7 @@ class Customer(SQLModel, table=True):
     orders: List["Order"] = Relationship(back_populates="customer")
     shopping_cart: Optional["Shopping_Cart"] = Relationship(back_populates="customer")
     like_list: List["Like_List"] = Relationship(back_populates="customer")
+    address_list: List["Address_List"] = Relationship(back_populates="customer")
 
 class Seller(SQLModel, table=True):
     sellerid: int = Field(default=None, primary_key=True, foreign_key="member.userid")
@@ -147,7 +149,7 @@ class Cart_List(SQLModel, table=True):
     book: Book = Relationship(back_populates="cart_list")
 
 class Address_List(SQLModel, table=True):
-    shoppingcartid: int = Field(default=None, primary_key=True)
+    addressid: int = Field(default=None, primary_key=True)
     customerid: int = Field(default=None, foreign_key="customer.customerid")
     address: str = Field(default=None, max_length=200)
     defaultaddress: bool = Field(default=False)
