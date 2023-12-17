@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List
 from app.models import BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit
 from .config import settings
-import shutil
+import shutil, os
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -366,33 +366,33 @@ async def upload_avatar(
     session: AsyncSession = Depends(get_session)
 ):
     user = await get_current_user_data(token, session)
-
-    # todo: delete origin picture in the img path
-    if avatar.content_type.startswith('image'):
-        file_location = f"./img/avatar/{token}.{avatar.content_type.split('/')[1]}"
+    
+    if avatar.content_type in ("image/jpg", "image/jpeg", "image/png"):
+        img_type = avatar.content_type.split('/')[1]
+        file_location = f"./img/avatar/{user.memberaccount}.{img_type}"
         with open(file_location, "wb") as file_object:
             shutil.copyfileobj(avatar.file, file_object)
 
         # 更新用戶的 ProfilePicture
-        user.profilepicture = avatar.filename
+        if user.profilepicture != 'default.jpg':
+            old_file_location = f"./img/avatar/{user.profilepicture}"
+            if os.path.exists(old_file_location):
+                os.remove(old_file_location)
+        user.profilepicture = f"{user.memberaccount}.{img_type}"
         await session.commit()
     else:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="avatar should be an image")
 
-    return {"message": f"avatar {avatar} upload successfully"}
+    return {"message": "avatar upload successfully"}
 
 # address
 @app.get("/address/show", response_model=Dict[str, List[Address]])
 async def show_address(token: str, session: AsyncSession = Depends(get_session)):
     user = await get_current_user_data(token, session)
-
-    # code below should be modified
     addresses = await session.scalars(select(Address_List).where(Address_List.customerid == user.userid))
     addresses = addresses.all()
     if not addresses:
-        # return empty dict
         return {}
-
     # shippingoption: list[address]
     categorized_addresses = {}
     for addr in addresses:
