@@ -9,8 +9,8 @@ from typing import Optional, List, Dict
 from sqlmodel import select
 from sqlalchemy import update, insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer
-from app.models import BookSearch, BookDetail, ShoppingCartList, Token, Profile
+from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List
+from app.models import BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit
 from .config import settings
 import shutil
 
@@ -96,11 +96,15 @@ async def register(member: Member, session: AsyncSession = Depends(get_session))
         birthdate=date.fromisoformat(member.birthdate),
         verified="未認證",
         usertype="Standard",
+        profilepicture = "default.jpg"
     )
     session.add(member)
     await session.commit()
     await session.refresh(member)
     stmt = insert(Seller).values(sellerid=member.userid)
+    await session.execute(stmt)
+    await session.commit()
+    stmt = insert(Customer).values(customerid=member.userid)
     await session.execute(stmt)
     await session.commit()
     return member
@@ -127,7 +131,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     return {"access_token": access_token, "token_type": "bearer"}
 
 ## book search
-@app.get("/books/", response_model=list[BookSearch])
+@app.get("/books", response_model=list[BookSearch])
 async def search_books_by_order(
     name: str = Query(None, min_length=3),
     sort_by: Optional[str] = Query(None, description='sorting option'),
@@ -243,9 +247,6 @@ async def add_to_cart(token: str, book_id: int, session: AsyncSession = Depends(
     shoppingCart = shoppingCart.first()
 
     if not shoppingCart:
-        stmt = insert(Customer).values(customerid=user.userid)
-        await session.execute(stmt)
-        await session.commit()
         Cart = Shopping_Cart(customerid=user.userid)
         session.add(Cart)
         await session.commit()
@@ -274,7 +275,7 @@ async def add_to_cart(token: str, book_id: int, session: AsyncSession = Depends(
 async def remove_from_cart(token: str, book_id: int, session: AsyncSession = Depends(get_session)):
     user = await get_current_user_data(token, session)
 
-    shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart. customerid == user.userid))
+    shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart.customerid == user.userid))
     shoppingCart = shoppingCart.first()
     if not shoppingCart:
         raise HTTPException(status_code=404, detail="shoppingCart not found")
@@ -310,12 +311,13 @@ async def change_password(
             stmt = update(Member).where(Member.userid == user.userid).values(password = hashed_password)
             await session.execute(stmt)
             await session.commit()
-            return {"origin password": origin_password, "new password": new_password} #還沒回傳改動後的密碼
+            return {"OK! origin password": origin_password, "new password": new_password}
         else:
-            return "The passwords entered are different"
+            return "The new passwords entered are different"
     else:
         return "the origin password is incorrect"
-    
+
+# profile  
 @app.get("/profile/view", response_model=Profile)
 async def view_profile(token: str, session: AsyncSession = Depends(get_session)):
     user = await get_current_user_data(token, session)
@@ -326,9 +328,36 @@ async def view_profile(token: str, session: AsyncSession = Depends(get_session))
         phone = user.phone,
         gender = user.gender,
         birthdate = user.birthdate,
-        profilepicture = user.profilepicture if user.profilepicture!=None else "default.jpg"
+        profilepicture = user.profilepicture
     )
 
+@app.patch("/profile/edit")
+async def edit_profile(token: str, 
+                       session: AsyncSession = Depends(get_session),
+                        name_input: str = Query(None),
+                        email_input: str = Query(None),
+                        phone_input: str = Query(None),
+                        gender_input: str = Query(None),
+                        birthdate_input: date = Query(None)):
+    user = await get_current_user_data(token, session)
+    if name_input:  
+        stmt = update(Member).where(Member.userid == user.userid).values(memberaccount = name_input)
+        await session.execute(stmt)
+    if email_input: 
+        stmt = update(Member).where(Member.userid == user.userid).values(email = email_input)
+        await session.execute(stmt)
+    if phone_input:
+        stmt = update(Member).where(Member.userid == user.userid).values(phone = phone_input)
+        await session.execute(stmt)
+    if gender_input:
+        stmt = update(Member).where(Member.userid == user.userid).values(gender = gender_input)
+        await session.execute(stmt)
+    if birthdate_input:
+        stmt = update(Member).where(Member.userid == user.userid).values(birthdate = birthdate_input)
+        await session.execute(stmt)
+
+    await session.commit()
+    return user
   
 @app.post("/profile/upload_avatar")
 async def upload_avatar(
@@ -350,9 +379,81 @@ async def upload_avatar(
     else:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="avatar should be an image")
 
-    return {"message": "avatar upload successfully"}
+    return {"message": f"avatar {avatar} upload successfully"}
 
+# address
+@app.get("/address/show", response_model=Dict[str, List[Address]])
+async def show_address(token: str, session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
 
-# @app.post("/profile/edit")
-# async def edit_profile():
+    # code below should be modified
+    addresses = await session.scalars(select(Address_List).where(Address_List.customerid == user.userid))
+    addresses = addresses.all()
+    if not addresses:
+        # return empty dict
+        return {}
 
+    # shippingoption: list[address]
+    categorized_addresses = {}
+    for addr in addresses:
+        opt = addr.shippingoption
+
+        if opt not in categorized_addresses:
+            categorized_addresses[opt] = []
+        categorized_addresses[opt].append(
+            Address(
+                addressid=addr.addressid,
+                address=addr.address,
+                defaultaddress=addr.defaultaddress
+            )
+        )
+    return categorized_addresses
+
+@app.post("/address/create", response_model=Address_List)
+async def create_address(token: str, address: AddressCreate, session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+
+    # 創建 Address 物件
+    new_address = Address_List(customerid=user.userid, **address.dict())
+
+    # 將新地址新增到資料庫中
+    session.add(new_address)
+    await session.commit()
+
+    return new_address
+
+@app.patch("/address/edit/{address_id}")
+async def edit_address(token: str, address: AddressEdit, address_id: int, session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+    if address.address:  
+        stmt = update(Address_List).where(Address_List.customerid == user.userid, Address_List.addressid == address_id).values(address = address.address)
+        await session.execute(stmt)
+    if address.defaultaddress: 
+        stmt = update(Address_List).where(Address_List.customerid == user.userid, Address_List.addressid == address_id).values(defaultaddress = address.defaultaddress)
+        await session.execute(stmt)
+    if address.shippingoption:
+        stmt = update(Address_List).where(Address_List.customerid == user.userid, Address_List.addressid == address_id).values(shippingoption = address.shippingoption)
+        await session.execute(stmt)
+
+    await session.commit()
+    return f"edit address {address_id} OK!"
+
+@app.delete("/address/delete/{address_id}")
+async def remove_from_address(token: str, address_id: int, session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+    address = await session.scalars(select(Address_List).where(Address_List.customerid == user.userid, Address_List.addressid == address_id))
+    address = address.first()
+    if not address:
+        raise HTTPException(status_code=404, detail= f"address {address_id} not found")
+
+    await session.delete(address)
+    await session.commit()
+
+    address_still_exists = await session.scalars(select(Address_List).where(Address_List.customerid == user.userid, Address_List.addressid == address_id))
+    address_still_exists = address_still_exists.first()
+    if address_still_exists:
+        return {"message": f"Failed to remove address {address_id}"}
+    else:
+        return {"message": f"Successfully removed address {address_id}"}
+
+# order

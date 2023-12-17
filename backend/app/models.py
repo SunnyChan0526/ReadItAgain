@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import datetime, date
+from fastapi import Query
 
 class BookSearch(BaseModel):
     name: str
@@ -39,3 +40,20 @@ class Profile(BaseModel):
     gender: str
     birthdate: date
     profilepicture: str
+
+# show address return model
+class Address(BaseModel):
+    addressid: int
+    address: str
+    defaultaddress: bool
+
+# input model
+class AddressCreate(BaseModel):
+    address: str
+    defaultaddress: bool = False 
+    shippingoption: str
+
+class AddressEdit(BaseModel):
+    address: str = Query(None)
+    defaultaddress: bool = Query(None)
+    shippingoption: str = Query(None)
