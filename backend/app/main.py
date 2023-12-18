@@ -491,7 +491,26 @@ async def remove_from_address(token: str, address_id: int, session: AsyncSession
 
 # order
 
+
 # seller-page (for customer)
+async def get_seller_info(seller_id: int, session: AsyncSession = Depends(get_session)):
+    seller = await session.scalars(select(Seller).where(Seller.sellerid == seller_id))
+    seller = seller.first()
+
+    if not seller:
+        raise HTTPException(status_code=404, detail="Seller not found")
+
+    member = await session.scalars(select(Member).where(Member.userid == seller.sellerid))
+    member = member.first()
+
+    seller_name = member.memberaccount
+    seller_avatar = member.profilepicture
+
+    seller_info = {
+        "seller_name": seller_name,
+        "seller_avatar": seller_avatar
+    }
+    return seller_info
 
 
 @app.get("/seller/{seller_id}/store")
@@ -502,15 +521,7 @@ async def get_seller_store(
     max_price: Optional[int] = Query(None, description="Maximum price"),
     session: AsyncSession = Depends(get_session)
 ):
-    seller = await session.scalars(select(Seller).where(Seller.sellerid == seller_id))
-    seller = seller.first()
-    if not seller:
-        raise HTTPException(status_code=404, detail="Seller not found")
-
-    seller_info = {
-        "seller_name": seller.member.memberaccount,
-        "seller_avatar": seller.member.profilepicture
-    }
+    seller_info = await get_seller_info(seller_id, session)
 
     query = select(Book).where(Book.sellerid ==
                                seller_id, Book.state == 'on sale')
