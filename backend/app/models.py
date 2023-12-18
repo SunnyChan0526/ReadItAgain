@@ -1,4 +1,7 @@
 from pydantic import BaseModel, Field
+from datetime import date
+from fastapi import Query
+from typing import Optional
 
 class BookSearch(BaseModel):
     name: str
@@ -29,3 +32,29 @@ class ShoppingCartList(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+class Profile(BaseModel):
+    userid: int
+    name: str
+    email: str
+    phone: str
+    gender: str
+    birthdate: date
+    profilepicture: str
+
+# show address return model
+class Address(BaseModel):
+    addressid: int
+    address: str
+    defaultaddress: bool
+
+# input model
+class AddressCreate(BaseModel):
+    address: str
+    defaultaddress: bool = False 
+    shippingoption: str
+
+class AddressEdit(BaseModel):
+    address: str = Query(None)
+    defaultaddress: Optional[bool] = Query(False)
+    shippingoption: str = Query(None)

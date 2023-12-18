@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Query, Depends, HTTPException, status, Security
+from fastapi import FastAPI, Query, Depends, HTTPException, status, Security, UploadFile
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import FileResponse
 from passlib.context import CryptContext
@@ -7,10 +7,12 @@ from datetime import datetime, timedelta, date
 from jose import JWTError, jwt
 from typing import Optional, List, Dict
 from sqlmodel import select
+from sqlalchemy import update, insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller
-from app.models import BookSearch, BookDetail, ShoppingCartList, Token
+from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List
+from app.models import BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit
 from .config import settings
+import shutil, os
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -61,12 +63,26 @@ async def get_current_user(token: str = Security(oauth2_scheme)):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+async def get_current_user_data(token: str, session: AsyncSession = Depends(get_session)):
+    token = await get_current_user(token)
+    user = await session.scalars(select(Member).where(Member.memberaccount == token))
+    user = user.first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
 
 @app.get("/")
 async def read_root():
     return "testroot"
 
+@app.get("/img")
+async def get_imgs(type: str, imgfilename: str):
+    if(type == 'book'):
+        return FileResponse(f"./img/book/{imgfilename}")
+    elif(type == 'avatar'):
+        return FileResponse(f"./img/avatar/{imgfilename}")
 
+## Authentication and Authorization
 @app.post("/register")
 async def register(member: Member, session: AsyncSession = Depends(get_session)):
     hashed_password = get_password_hash(member.password)
@@ -79,12 +95,18 @@ async def register(member: Member, session: AsyncSession = Depends(get_session))
         email=member.email,
         birthdate=date.fromisoformat(member.birthdate),
         verified="未認證",
-        usertype="Standard"
+        usertype="Standard",
+        profilepicture = "default.jpg"
     )
     session.add(member)
     await session.commit()
     await session.refresh(member)
-
+    stmt = insert(Seller).values(sellerid=member.userid)
+    await session.execute(stmt)
+    await session.commit()
+    stmt = insert(Customer).values(customerid=member.userid)
+    await session.execute(stmt)
+    await session.commit()
     return member
 
 
@@ -108,8 +130,8 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-
-@app.get("/books/", response_model=list[BookSearch])
+## book search
+@app.get("/books", response_model=list[BookSearch])
 async def search_books_by_order(
     name: str = Query(None, min_length=3),
     sort_by: Optional[str] = Query(None, description='sorting option'),
@@ -152,11 +174,7 @@ async def search_books_by_order(
 @app.get("/user/books")
 async def get_user_books(token: str, session: AsyncSession = Depends(get_session)):
     # 根據 user_id 獲取 Seller
-    token = await get_current_user(token)
-    user = await session.scalars(select(Member).where(Member.memberaccount == token))
-    user = user.first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = await get_current_user_data(token, session)
 
     seller = await session.scalars(select(Seller).where(Seller.sellerid == user.userid))
     seller = seller.first()
@@ -189,21 +207,12 @@ async def get_book_details(book_id: int, session: AsyncSession = Depends(get_ses
         bookpictures=[p.picturepath for p in pictures]
     )
 
-
-@app.get("/img/{imgfilename}")
-async def get_imgs(imgfilename: str):
-    return FileResponse(f"./img/{imgfilename}")
-
-
+## shopping cart
 @app.get("/show-cart", response_model=Dict[int, List[ShoppingCartList]])
 async def show_cart(token: str, session: AsyncSession = Depends(get_session)):
-    token = await get_current_user(token)
-    user = await session.scalars(select(Member).where(Member.memberaccount == token))
-    user = user.first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = await get_current_user_data(token, session)
 
-    shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart. customerid == user.userid))
+    shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart.customerid == user.userid))
     shoppingCart = shoppingCart.first()
     if not shoppingCart:
         raise HTTPException(status_code=404, detail="shoppingCart not found")
@@ -232,11 +241,7 @@ async def show_cart(token: str, session: AsyncSession = Depends(get_session)):
 
 @app.post("/add-to-cart/{book_id}")
 async def add_to_cart(token: str, book_id: int, session: AsyncSession = Depends(get_session)):
-    token = await get_current_user(token)
-    user = await session.scalars(select(Member).where(Member.memberaccount == token))
-    user = user.first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = await get_current_user_data(token, session)
 
     shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart.customerid == user.userid))
     shoppingCart = shoppingCart.first()
@@ -268,13 +273,9 @@ async def add_to_cart(token: str, book_id: int, session: AsyncSession = Depends(
 
 @app.delete("/remove-from-cart/{book_id}")
 async def remove_from_cart(token: str, book_id: int, session: AsyncSession = Depends(get_session)):
-    token = await get_current_user(token)
-    user = await session.scalars(select(Member).where(Member.memberaccount == token))
-    user = user.first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = await get_current_user_data(token, session)
 
-    shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart. customerid == user.userid))
+    shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart.customerid == user.userid))
     shoppingCart = shoppingCart.first()
     if not shoppingCart:
         raise HTTPException(status_code=404, detail="shoppingCart not found")
@@ -294,3 +295,165 @@ async def remove_from_cart(token: str, book_id: int, session: AsyncSession = Dep
         return {"message": f"Failed to remove book {book_id} from cart {shoppingCart.shoppingcartid}"}
     else:
         return {"message": f"Successfully removed book {book_id} from cart {shoppingCart.shoppingcartid}"}
+
+## my account   
+@app.post("/change_password")
+async def change_password(
+    token: str,
+    origin_password: str = Query(None), 
+    new_password: str = Query(None), 
+    new_password_check: str = Query(None), 
+    session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+    if(verify_password(origin_password, user.password)):
+        if(new_password == new_password_check):
+            hashed_password = get_password_hash(new_password)
+            stmt = update(Member).where(Member.userid == user.userid).values(password = hashed_password)
+            await session.execute(stmt)
+            await session.commit()
+            return {"OK! origin password": origin_password, "new password": new_password}
+        else:
+            return "The new passwords entered are different"
+    else:
+        return "the origin password is incorrect"
+
+# profile  
+@app.get("/profile/view", response_model=Profile)
+async def view_profile(token: str, session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+    return Profile(
+        userid = user.userid,
+        name = user.memberaccount,
+        email = user.email,
+        phone = user.phone,
+        gender = user.gender,
+        birthdate = user.birthdate,
+        profilepicture = user.profilepicture
+    )
+
+@app.patch("/profile/edit")
+async def edit_profile(token: str, 
+                       session: AsyncSession = Depends(get_session),
+                        name_input: str = Query(None),
+                        email_input: str = Query(None),
+                        phone_input: str = Query(None),
+                        gender_input: str = Query(None),
+                        birthdate_input: date = Query(None)):
+    user = await get_current_user_data(token, session)
+    if name_input:  
+        stmt = update(Member).where(Member.userid == user.userid).values(memberaccount = name_input)
+        await session.execute(stmt)
+    if email_input: 
+        stmt = update(Member).where(Member.userid == user.userid).values(email = email_input)
+        await session.execute(stmt)
+    if phone_input:
+        stmt = update(Member).where(Member.userid == user.userid).values(phone = phone_input)
+        await session.execute(stmt)
+    if gender_input:
+        stmt = update(Member).where(Member.userid == user.userid).values(gender = gender_input)
+        await session.execute(stmt)
+    if birthdate_input:
+        stmt = update(Member).where(Member.userid == user.userid).values(birthdate = birthdate_input)
+        await session.execute(stmt)
+
+    await session.commit()
+    return user
+  
+@app.post("/profile/upload_avatar")
+async def upload_avatar(
+    token: str,
+    avatar: UploadFile,
+    session: AsyncSession = Depends(get_session)
+):
+    user = await get_current_user_data(token, session)
+    
+    if avatar.content_type in ("image/jpg", "image/jpeg", "image/png"):
+        img_type = avatar.content_type.split('/')[1]
+        file_location = f"./img/avatar/{user.memberaccount}.{img_type}"
+        with open(file_location, "wb") as file_object:
+            shutil.copyfileobj(avatar.file, file_object)
+
+        # 更新用戶的 ProfilePicture
+        if user.profilepicture != 'default.jpg':
+            old_file_location = f"./img/avatar/{user.profilepicture}"
+            if os.path.exists(old_file_location):
+                os.remove(old_file_location)
+        user.profilepicture = f"{user.memberaccount}.{img_type}"
+        await session.commit()
+    else:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="avatar should be an image")
+
+    return {"message": "avatar upload successfully"}
+
+# address
+@app.get("/address/show", response_model=Dict[str, List[Address]])
+async def show_address(token: str, session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+    addresses = await session.scalars(select(Address_List).where(Address_List.customerid == user.userid))
+    addresses = addresses.all()
+    if not addresses:
+        return {}
+    # shippingoption: list[address]
+    categorized_addresses = {}
+    for addr in addresses:
+        opt = addr.shippingoption
+
+        if opt not in categorized_addresses:
+            categorized_addresses[opt] = []
+        categorized_addresses[opt].append(
+            Address(
+                addressid=addr.addressid,
+                address=addr.address,
+                defaultaddress=addr.defaultaddress
+            )
+        )
+    return categorized_addresses
+
+@app.post("/address/create", response_model=Address_List)
+async def create_address(token: str, address: AddressCreate, session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+
+    # 創建 Address 物件
+    new_address = Address_List(customerid=user.userid, **address.dict())
+
+    # 將新地址新增到資料庫中
+    session.add(new_address)
+    await session.commit()
+
+    return new_address
+
+@app.patch("/address/edit/{address_id}")
+async def edit_address(token: str, address: AddressEdit, address_id: int, session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+    if address.address:  
+        stmt = update(Address_List).where(Address_List.customerid == user.userid, Address_List.addressid == address_id).values(address = address.address)
+        await session.execute(stmt)
+    if address.defaultaddress: 
+        stmt = update(Address_List).where(Address_List.customerid == user.userid, Address_List.addressid == address_id).values(defaultaddress = address.defaultaddress)
+        await session.execute(stmt)
+    if address.shippingoption:
+        stmt = update(Address_List).where(Address_List.customerid == user.userid, Address_List.addressid == address_id).values(shippingoption = address.shippingoption)
+        await session.execute(stmt)
+
+    await session.commit()
+    return f"edit address {address_id} OK!"
+
+@app.delete("/address/delete/{address_id}")
+async def remove_from_address(token: str, address_id: int, session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+    address = await session.scalars(select(Address_List).where(Address_List.customerid == user.userid, Address_List.addressid == address_id))
+    address = address.first()
+    if not address:
+        raise HTTPException(status_code=404, detail= f"address {address_id} not found")
+
+    await session.delete(address)
+    await session.commit()
+
+    address_still_exists = await session.scalars(select(Address_List).where(Address_List.customerid == user.userid, Address_List.addressid == address_id))
+    address_still_exists = address_still_exists.first()
+    if address_still_exists:
+        return {"message": f"Failed to remove address {address_id}"}
+    else:
+        return {"message": f"Successfully removed address {address_id}"}
+
+# order

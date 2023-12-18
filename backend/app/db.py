@@ -16,7 +16,6 @@ class Member(SQLModel, table=True):
     phone: str = Field(max_length=20, sa_column_kwargs={"unique": True})
     email: str = Field(max_length=100, sa_column_kwargs={"unique": True})
     birthdate: date
-    address: Optional[str] = Field(default=None, max_length=200)
     usertype: str = Field(max_length=20)
     selfintroduction: Optional[str] = Field(default=None, max_length=500)
     profilepicture: Optional[str] = Field(default=None, max_length=200)
@@ -27,6 +26,7 @@ class Member(SQLModel, table=True):
     seller: Optional["Seller"] = Relationship(back_populates="member")
     administrator: Optional["Administrator"] = Relationship(back_populates="member")
 
+
 class Customer(SQLModel, table=True):
     customerid: int = Field(default=None, primary_key=True, foreign_key="member.userid")
     # Relationships
@@ -34,6 +34,7 @@ class Customer(SQLModel, table=True):
     orders: List["Order"] = Relationship(back_populates="customer")
     shopping_cart: Optional["Shopping_Cart"] = Relationship(back_populates="customer")
     like_list: List["Like_List"] = Relationship(back_populates="customer")
+    address_list: List["Address_List"] = Relationship(back_populates="customer")
 
 class Seller(SQLModel, table=True):
     sellerid: int = Field(default=None, primary_key=True, foreign_key="member.userid")
@@ -146,6 +147,17 @@ class Cart_List(SQLModel, table=True):
     # Relationships
     shopping_cart: Shopping_Cart = Relationship(back_populates="cart_list")
     book: Book = Relationship(back_populates="cart_list")
+
+class Address_List(SQLModel, table=True):
+    addressid: int = Field(default=None, primary_key=True)
+    customerid: int = Field(default=None, foreign_key="customer.customerid")
+    address: str = Field(default=None, max_length=200)
+    defaultaddress: bool = Field(default=False)
+    shippingoption: str = Field(default=None, max_length=50)
+
+    # Relationships
+    customer: Customer = Relationship(back_populates="address_list")
+
 
 class Specialized(SQLModel, table=True):
     discountcode: int = Field(default=None, primary_key=True, foreign_key="discount.discountcode")
