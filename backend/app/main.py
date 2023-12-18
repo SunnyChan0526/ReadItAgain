@@ -503,12 +503,9 @@ async def get_seller_info(seller_id: int, session: AsyncSession = Depends(get_se
     member = await session.scalars(select(Member).where(Member.userid == seller.sellerid))
     member = member.first()
 
-    seller_name = member.memberaccount
-    seller_avatar = member.profilepicture
-
     seller_info = {
-        "seller_name": seller_name,
-        "seller_avatar": seller_avatar
+        "seller_name": member.memberaccount,
+        "seller_avatar": member.profilepicture
     }
     return seller_info
 
