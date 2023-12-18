@@ -22,26 +22,26 @@ CREATE TABLE MEMBER (
 
 -- Insert fake data into MEMBER table
 INSERT INTO MEMBER (MemberAccount, Password, Name, Gender, RegistrationTime, Verified, Phone, Email, BirthDate, UserType, SelfIntroduction, ProfilePicture, Authority) VALUES 
-('gang15', '_iXMFY*dt2', '錢建宏', '女性', '2020-10-05T22:40:14', '已認證', '022 54277143', 'qinli@example.net', '1989-10-17', 'Standard', '我是錢建宏，我愛大家', "default.jpg", null),
-('yli', 'Z3lWKBVr)4', '高志豪', '女性', '2022-08-13T11:47:34', '已認證', '0943-631687', 'weikang@example.net', '2001-03-17', 'Standard', '我是高志豪，我愛大家', "default.jpg", null),
-('zzhu', '@@X6GKzb_L', '潘依婷', '保密', '2020-07-20T01:18:19', '已認證', '087 67390042', 'hcao@example.com', '1994-07-10', 'Standard', '我是潘依婷，我愛大家', "default.jpg", null),
-('zhangjing', '6)J&4RabfD', '吳詩婷', '女性', '2020-01-21T14:30:38', '已認證', '007 10731504', 'gang62@example.com', '1971-05-21', 'Standard', '我是吳詩婷，我愛大家', "default.jpg", null),
-('guiying01', 'O^z2SwJd%Q', '董慧君', '男性', '2022-11-08T18:17:29', '已認證', '04-43614189', 'guiyingcao@example.com', '1959-11-05', 'Standard', '我是董慧君，我愛大家', "default.jpg", null),
-('mingguo', '5^#E8IDo8c', '施雅文', '中性', '2022-01-17T07:49:27', '已認證', '09 8380281', 'fang23@example.net', '1977-01-05', 'Standard', '我是施雅文，我愛大家', "default.jpg", null),
-('leihuang', 'Dx%!kKJl)0', '鄧志豪', '女性', '2020-03-19T19:46:23', '已認證', '07 1944666', 'xiulan58@example.com', '1994-06-12', 'Standard', '我是鄧志豪，我愛大家', "default.jpg", null),
-('wei57', 'JC#22oUfT_', '林淑芬', '男性', '2020-12-01T07:33:25', '已認證', '099 69654723', 'kongchao@example.com', '1986-07-16', 'Standard', '我是林淑芬，我愛大家', "default.jpg", null),
-('luxiuying', 'E!7R@H%dO@', '翟哲瑋', '中性', '2021-10-06T06:14:05', '已認證', '03-1507567', 'bgong@example.net', '1945-04-18', 'Admin', '我是翟哲瑋，我愛大家', "default.jpg", null),
-('min97', 'cm@^Mdet(1', '沈婷婷', '保密', '2020-12-20T06:25:52', '已認證', '0980325724', 'min24@example.com', '1953-02-25', 'Admin', '我是沈婷婷，我愛大家', "default.jpg", null),
-('min39', '$+TrCcIzo5', '張惠雯', '女性', '2022-05-30T09:28:59', '已認證', '(08) 93150254', 'jun26@example.com', '1952-12-16', 'Admin', '我是張惠雯，我愛大家', "default.jpg", null),
-('xueguiying', '&a_5PcisRZ', '蔡佳蓉', '中性', '2022-10-07T15:50:30', '未認證', '006 62325613', 'li63@example.net', '1972-10-25', 'Standard', '我是蔡佳蓉，我愛大家', "default.jpg", null),
-('nmeng', 'dbR7LQbY$7', '巫佳蓉', '男性', '2022-10-24T06:37:39', '未認證', '02 9757313', 'wgao@example.com', '1933-03-22', 'Standard', '我是巫佳蓉，我愛大家', "default.jpg", null),
-('li23', 'Uv@j9Kydo)', '張馨儀', '保密', '2022-01-12T20:19:55', '未認證', '0980-276511', 'yanjia@example.com', '1949-10-03', 'Standard', '我是張馨儀，我愛大家', "default.jpg", null),
-('wei77', '%(VwzWFgF8', '田筱涵', '保密', '2021-11-30T19:12:53', '未認證', '03-2953474', 'guiying89@example.org', '1971-01-17', 'Standard', '我是田筱涵，我愛大家', "default.jpg", null),
-('mengjuan', '$1Tf#_Di5T', '劉惠雯', '女性', '2022-05-15T05:41:16', '未認證', '(04) 29291402', 'xiulan69@example.org', '1998-12-17', 'Admin', '我是劉惠雯，我愛大家', "default.jpg", null),
-('minfang', 'k*4smUxj7u', '何雅萍', '女性', '2022-12-02T20:51:46', '未認證', '0919642301', 'ehe@example.com', '1974-10-21', 'Admin', '我是何雅萍，我愛大家', "default.jpg", null),
-('dailei', 'ux0NWg+5%2', '王美琪', '女性', '2020-01-04T18:04:09', '未認證', '087 35604269', 'qzhang@example.org', '1993-03-20', 'Admin', '我是王美琪，我愛大家', "default.jpg", null),
-('yan91', '%%KyL3pD$7', '張佳蓉', '男性', '2023-08-25T14:34:34', '未認證', '01-87605207', 'okong@example.net', '1987-11-20', 'Admin', '我是張佳蓉，我愛大家', "default.jpg", null),
-('gongna', 'yYB6I&Gp)1', '鄭佳穎', '男性', '2023-06-09T21:37:48', '未認證', '06-50953265', 'fang76@example.net', '1988-06-28', 'Admin', '我是鄭佳穎，我愛大家', "default.jpg", null);
+('gang15', '_iXMFY*dt2', '錢建宏', '女性', '2020-10-05T22:40:14', '已認證', '022 54277143', 'qinli@example.net', '1989-10-17', 'Standard', '我是錢建宏，我愛大家', 'default.jpg', null),
+('yli', 'Z3lWKBVr)4', '高志豪', '女性', '2022-08-13T11:47:34', '已認證', '0943-631687', 'weikang@example.net', '2001-03-17', 'Standard', '我是高志豪，我愛大家', 'default.jpg', null),
+('zzhu', '@@X6GKzb_L', '潘依婷', '保密', '2020-07-20T01:18:19', '已認證', '087 67390042', 'hcao@example.com', '1994-07-10', 'Standard', '我是潘依婷，我愛大家', 'default.jpg', null),
+('zhangjing', '6)J&4RabfD', '吳詩婷', '女性', '2020-01-21T14:30:38', '已認證', '007 10731504', 'gang62@example.com', '1971-05-21', 'Standard', '我是吳詩婷，我愛大家', 'default.jpg', null),
+('guiying01', 'O^z2SwJd%Q', '董慧君', '男性', '2022-11-08T18:17:29', '已認證', '04-43614189', 'guiyingcao@example.com', '1959-11-05', 'Standard', '我是董慧君，我愛大家', 'default.jpg', null),
+('mingguo', '5^#E8IDo8c', '施雅文', '中性', '2022-01-17T07:49:27', '已認證', '09 8380281', 'fang23@example.net', '1977-01-05', 'Standard', '我是施雅文，我愛大家', 'default.jpg', null),
+('leihuang', 'Dx%!kKJl)0', '鄧志豪', '女性', '2020-03-19T19:46:23', '已認證', '07 1944666', 'xiulan58@example.com', '1994-06-12', 'Standard', '我是鄧志豪，我愛大家', 'default.jpg', null),
+('wei57', 'JC#22oUfT_', '林淑芬', '男性', '2020-12-01T07:33:25', '已認證', '099 69654723', 'kongchao@example.com', '1986-07-16', 'Standard', '我是林淑芬，我愛大家', 'default.jpg', null),
+('luxiuying', 'E!7R@H%dO@', '翟哲瑋', '中性', '2021-10-06T06:14:05', '已認證', '03-1507567', 'bgong@example.net', '1945-04-18', 'Admin', '我是翟哲瑋，我愛大家', 'default.jpg', null),
+('min97', 'cm@^Mdet(1', '沈婷婷', '保密', '2020-12-20T06:25:52', '已認證', '0980325724', 'min24@example.com', '1953-02-25', 'Admin', '我是沈婷婷，我愛大家', 'default.jpg', null),
+('min39', '$+TrCcIzo5', '張惠雯', '女性', '2022-05-30T09:28:59', '已認證', '(08) 93150254', 'jun26@example.com', '1952-12-16', 'Admin', '我是張惠雯，我愛大家', 'default.jpg', null),
+('xueguiying', '&a_5PcisRZ', '蔡佳蓉', '中性', '2022-10-07T15:50:30', '未認證', '006 62325613', 'li63@example.net', '1972-10-25', 'Standard', '我是蔡佳蓉，我愛大家', 'default.jpg', null),
+('nmeng', 'dbR7LQbY$7', '巫佳蓉', '男性', '2022-10-24T06:37:39', '未認證', '02 9757313', 'wgao@example.com', '1933-03-22', 'Standard', '我是巫佳蓉，我愛大家', 'default.jpg', null),
+('li23', 'Uv@j9Kydo)', '張馨儀', '保密', '2022-01-12T20:19:55', '未認證', '0980-276511', 'yanjia@example.com', '1949-10-03', 'Standard', '我是張馨儀，我愛大家', 'default.jpg', null),
+('wei77', '%(VwzWFgF8', '田筱涵', '保密', '2021-11-30T19:12:53', '未認證', '03-2953474', 'guiying89@example.org', '1971-01-17', 'Standard', '我是田筱涵，我愛大家', 'default.jpg', null),
+('mengjuan', '$1Tf#_Di5T', '劉惠雯', '女性', '2022-05-15T05:41:16', '未認證', '(04) 29291402', 'xiulan69@example.org', '1998-12-17', 'Admin', '我是劉惠雯，我愛大家', 'default.jpg', null),
+('minfang', 'k*4smUxj7u', '何雅萍', '女性', '2022-12-02T20:51:46', '未認證', '0919642301', 'ehe@example.com', '1974-10-21', 'Admin', '我是何雅萍，我愛大家', 'default.jpg', null),
+('dailei', 'ux0NWg+5%2', '王美琪', '女性', '2020-01-04T18:04:09', '未認證', '087 35604269', 'qzhang@example.org', '1993-03-20', 'Admin', '我是王美琪，我愛大家', 'default.jpg', null),
+('yan91', '%%KyL3pD$7', '張佳蓉', '男性', '2023-08-25T14:34:34', '未認證', '01-87605207', 'okong@example.net', '1987-11-20', 'Admin', '我是張佳蓉，我愛大家', 'default.jpg', null),
+('gongna', 'yYB6I&Gp)1', '鄭佳穎', '男性', '2023-06-09T21:37:48', '未認證', '06-50953265', 'fang76@example.net', '1988-06-28', 'Admin', '我是鄭佳穎，我愛大家', 'default.jpg', null);
 
 -- Create CUSTOMER table
 CREATE TABLE CUSTOMER (
