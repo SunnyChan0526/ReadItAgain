@@ -71,6 +71,36 @@ async def get_current_user_data(token: str, session: AsyncSession = Depends(get_
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
+async def show_cart(token: str, session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+
+    shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart.customerid == user.userid))
+    shoppingCart = shoppingCart.first()
+    if not shoppingCart:
+        raise HTTPException(status_code=404, detail="shoppingCart not found")
+
+    cart_items = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == shoppingCart.shoppingcartid))
+    cart_items = cart_items.all()
+
+    categorized_books = {}
+    for item in cart_items:
+        book = await session.scalars(select(Book).where(Book.bookid == item.bookid))
+        book = book.first()
+        seller_id = book.sellerid
+        if seller_id not in categorized_books:
+            categorized_books[seller_id] = []
+
+        picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == item.bookid).order_by(Picture_List.pictureid))
+        picture = picture.first()
+        cart_details = ShoppingCartList(
+            name=book.name,
+            picturepath=picture.picturepath if picture else "",
+            price=book.price
+        )
+        categorized_books[seller_id].append(cart_details)
+    return categorized_books
+
+
 @app.get("/")
 async def read_root():
     return "testroot"
@@ -208,35 +238,20 @@ async def get_book_details(book_id: int, session: AsyncSession = Depends(get_ses
     )
 
 ## shopping cart
-@app.get("/show-cart", response_model=Dict[int, List[ShoppingCartList]])
-async def show_cart(token: str, session: AsyncSession = Depends(get_session)):
-    user = await get_current_user_data(token, session)
+@app.get("/show-cart/seller")
+async def seller_in_cart(token: str, session: AsyncSession = Depends(get_session)):
+    cart = await show_cart(token, session)
+    seller_id = list(cart.keys())
+    seller_name_list = []
+    for i in seller_id:
+        seller_name = await session.scalars(select(Member.name).where(Member.userid == i))
+        seller_name_list.append(seller_name.first())
+    return seller_name_list
 
-    shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart.customerid == user.userid))
-    shoppingCart = shoppingCart.first()
-    if not shoppingCart:
-        raise HTTPException(status_code=404, detail="shoppingCart not found")
-
-    cart_items = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == shoppingCart.shoppingcartid))
-    cart_items = cart_items.all()
-
-    categorized_books = {}
-    for item in cart_items:
-        book = await session.scalars(select(Book).where(Book.bookid == item.bookid))
-        book = book.first()
-        seller_id = book.sellerid
-        if seller_id not in categorized_books:
-            categorized_books[seller_id] = []
-
-        picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == item.bookid).order_by(Picture_List.pictureid))
-        picture = picture.first()
-        cart_details = ShoppingCartList(
-            name=book.name,
-            picturepath=picture.picturepath if picture else "",
-            price=book.price
-        )
-        categorized_books[seller_id].append(cart_details)
-    return categorized_books
+@app.get("/show-cart/books", response_model = list[ShoppingCartList])
+async def books_in_cart(seller_id: int, token: str, session: AsyncSession = Depends(get_session)):
+    cart = await show_cart(token, session)
+    return cart[seller_id]
 
 
 @app.post("/add-to-cart/{book_id}")
