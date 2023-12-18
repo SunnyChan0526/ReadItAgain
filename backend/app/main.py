@@ -456,4 +456,27 @@ async def remove_from_address(token: str, address_id: int, session: AsyncSession
     else:
         return {"message": f"Successfully removed address {address_id}"}
 
-# order
+# 不知道需不需要token驗證
+@app.get("/checkout/select-coupon/{type}")
+async def select_coupon(
+    # token: str,
+    type: str = Query("all"),
+    seller_id: int,
+    # book_id: list[int],
+    session: AsyncSession = Depends(get_session)
+):
+    rst = {
+        "special event" : list(),
+        "seasoning" : list(),
+        "shipping fee" : list()
+    }
+    # 記得要check bookid list都要是屬於該seller的
+    coupons = await session.scalars(select(Discount).where(Discount.sellerid == seller_id))
+    for c in coupons:
+        print(c)
+
+# 1. 呈現出來的折價券要是在活動時內的
+# 2. 從bookID去找有無discount code再去discount抓special event的折價券出來
+# 3. 抓出該seller的所有折價券(seasoning, shipping)都是綁訂單的
+# 回傳內容seasoning, shipping要歸類可使用還是不能使用(因為需要滿足最低條件
+# 回傳要給三種折價類別，其中每個類別也要標記可使用與否
