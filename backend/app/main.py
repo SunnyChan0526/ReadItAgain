@@ -10,7 +10,7 @@ from sqlmodel import select
 from sqlalchemy import update, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List, Discount
-from app.models import BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit, DiscountInfo, CheckoutList
+from app.models import BookInfo, BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit, DiscountInfo, CheckoutList
 from .config import settings
 from datetime import datetime
 import shutil, os
@@ -93,10 +93,21 @@ async def show_cart(token: str, session: AsyncSession = Depends(get_session)):
 
         picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == item.bookid).order_by(Picture_List.pictureid))
         picture = picture.first()
-        cart_details = ShoppingCartList(
+        cart_details = BookInfo(
+            bookid=book.bookid,
+            sellerid=book.sellerid,
+            orderid=book.orderid,
+            discountcode=book.discountcode,
+            isbn=book.isbn,
+            shippinglocation=book.shippinglocation,
+            shippingmethod=book.shippingmethod,
             name=book.name,
-            picturepath=picture.picturepath if picture else "",
-            price=book.price
+            condition=book.condition,
+            price=book.price,
+            description=book.description,
+            category=book.category,
+            state=book.state,
+            picturepath=picture.picturepath if picture else ""    
         )
         categorized_books[seller_id].append(cart_details)
     return categorized_books
@@ -253,8 +264,15 @@ async def seller_in_cart(token: str, session: AsyncSession = Depends(get_session
 @app.get("/show-cart/books", response_model = list[ShoppingCartList])
 async def books_in_cart(seller_id: int, token: str, session: AsyncSession = Depends(get_session)):
     cart = await show_cart(token, session)
-    return cart[seller_id]
-
+    result = []
+    for i in cart[seller_id]:
+        book = ShoppingCartList(
+            name=i.name,
+            picturepath=i.picturepath,
+            price=i.price
+        )
+        result.append(book)
+    return result
 
 @app.post("/add-to-cart/{book_id}")
 async def add_to_cart(token: str, book_id: int, session: AsyncSession = Depends(get_session)):
@@ -473,11 +491,12 @@ async def remove_from_address(token: str, address_id: int, session: AsyncSession
     else:
         return {"message": f"Successfully removed address {address_id}"}
 
-@app.get("/checkout/select-coupon", response_model=Dict[str, List[DiscountInfo]])
+@app.get("/checkout/select-coupon/{seller_id}") #, response_model=Dict[str, List[DiscountInfo]]
 async def select_coupon(
+    token: str,
     seller_id: int,
-    totalcost: int,
-    book_ids: list[int] = Query(None, description='bookid in shopping cart'),
+    # totalcost: int,
+    # book_ids: list[int] = Query(None, description='bookid in shopping cart'),
     session: AsyncSession = Depends(get_session)
 ):
     rst = {
@@ -485,15 +504,15 @@ async def select_coupon(
         "seasoning" : list(),
         "shipping fee" : list()
     }
-    
+    cart = await show_cart(token, session)
+    book_rows = cart[seller_id]
+
     # 找出所有購物車book的row、所有買家擁有的coupon、購物車中可以applied的優惠券的code
     coupon_query = await session.scalars(select(Discount).where(Discount.sellerid == seller_id))
-    book_query = []
-    for id in book_ids:
-        book_row = await session.scalars(select(Book).where(Book.bookid == id))
-        book_query += book_row.all()
     special_event_discountcode_list = []
-    for book in book_query:
+    totalcost = 0
+    for book in book_rows:
+        totalcost += book.price
         if book.discountcode:
             special_event_discountcode_list.append(book.discountcode)
         if book.sellerid != seller_id:
@@ -529,23 +548,40 @@ async def select_coupon(
 
     
 # checkout
-@app.get("/checkout/{seller_id}", response_model = CheckoutList)
-async def checkout(seller_id: int, shipping_options: str, token: str, session: AsyncSession = Depends(get_session)):
+@app.post("/checkout/{seller_id}", response_model = CheckoutList)
+async def checkout(seller_id: int, shipping_options: str, selected_coupons: list[DiscountInfo], token: str, session: AsyncSession = Depends(get_session)):
     seller_name = await session.scalars(select(Member.name).where(Member.userid == seller_id))
     seller_name = seller_name.first()
     cart = await show_cart(token, session)
-    books = cart[seller_id]
-    books_total = sum(i.price for i in books)
+    books = []
+    for i in cart[seller_id]:
+        book = ShoppingCartList(
+                    name=i.name,
+                    picturepath=i.picturepath,
+                    price=i.price
+                )
+        books.append(book)
+    books_total_price = sum(i.price for i in books)
     if shipping_options == '7-ELEVEN' or shipping_options == '全家':
         shipping_fee = 60
     elif shipping_options == '快遞':
         shipping_fee = 120
     elif shipping_options == '面交':
         shipping_fee = 0
+    
+    for coupon in selected_coupons:
+        if coupon.type == 'seasoning':
+            if coupon.discountrate >= 1:
+                discount_price = coupon.discountrate
+            else:
+                discount_price = books_total_price * (1 - coupon.discountrate)
+        elif coupon.type == 'shipping fee':
+            shipping_fee = 0
     return CheckoutList(seller_name=seller_name, 
                         books=books, 
                         items=len(books), 
-                        books_total=books_total,
+                        books_total_price=books_total_price,
                         shipping_options=shipping_options,
                         shipping_fee=shipping_fee,
-                        total_amount=books_total+shipping_fee) 
+                        coupon_name = [i.name for i in selected_coupons],
+                        total_amount=books_total_price+shipping_fee-discount_price) 
