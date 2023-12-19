@@ -478,9 +478,6 @@ async def select_coupon(
         book_row = await session.scalars(select(Book).where(Book.bookid == id))
         book_query += book_row.all()
     special_event_discountcode_list = []
-    print('-------------------\n')
-    print(book_query)
-    print('\n-------------------')
     for book in book_query:
         if book.discountcode:
             special_event_discountcode_list.append(book.discountcode)
@@ -504,9 +501,6 @@ async def select_coupon(
                         minimumamountfordiscount = coupon.minimumamountfordiscount,
                         isable = True
                     )
-        print('-------------------\n')
-        print(coupon)
-        print('\n-------------------')
         if coupon.type == 'special event':
             if coupon.discountcode in special_event_discountcode_list:
                 rst['special event'].append(info)
