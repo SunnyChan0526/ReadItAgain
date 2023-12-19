@@ -29,6 +29,15 @@ class ShoppingCartList(BaseModel):
     picturepath: str
     price: int
 
+class CheckoutList(BaseModel):
+    seller_name: str
+    books: list[ShoppingCartList]
+    items: int
+    books_total: int
+    shipping_options: str
+    shipping_fee: int
+    total_amount: int
+
 class Token(BaseModel):
     access_token: str
     token_type: str
