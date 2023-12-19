@@ -10,7 +10,7 @@ from sqlmodel import select
 from sqlalchemy import update, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List
-from app.models import BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit
+from app.models import BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit, CheckoutList
 from .config import settings
 import shutil, os
 
@@ -238,6 +238,7 @@ async def get_book_details(book_id: int, session: AsyncSession = Depends(get_ses
     )
 
 ## shopping cart
+
 @app.get("/show-cart/seller")
 async def seller_in_cart(token: str, session: AsyncSession = Depends(get_session)):
     cart = await show_cart(token, session)
@@ -470,5 +471,25 @@ async def remove_from_address(token: str, address_id: int, session: AsyncSession
         return {"message": f"Failed to remove address {address_id}"}
     else:
         return {"message": f"Successfully removed address {address_id}"}
-
-# order
+    
+# checkout
+@app.get("/checkout/{seller_id}", response_model = CheckoutList)
+async def checkout(seller_id: int, shipping_options: str, token: str, session: AsyncSession = Depends(get_session)):
+    seller_name = await session.scalars(select(Member.name).where(Member.userid == seller_id))
+    seller_name = seller_name.first()
+    cart = await show_cart(token, session)
+    books = cart[seller_id]
+    books_total = sum(i.price for i in books)
+    if shipping_options == '7-ELEVEN' or shipping_options == '全家':
+        shipping_fee = 60
+    elif shipping_options == '快遞':
+        shipping_fee = 120
+    elif shipping_options == '面交':
+        shipping_fee = 0
+    return CheckoutList(seller_name=seller_name, 
+                        books=books, 
+                        items=len(books), 
+                        books_total=books_total,
+                        shipping_options=shipping_options,
+                        shipping_fee=shipping_fee,
+                        total_amount=books_total+shipping_fee) 
