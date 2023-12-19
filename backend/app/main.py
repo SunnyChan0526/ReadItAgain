@@ -10,7 +10,7 @@ from sqlmodel import select
 from sqlalchemy import update, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List
-from app.models import BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit
+from app.models import BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit, CheckoutList
 from .config import settings
 import shutil, os
 
@@ -70,6 +70,36 @@ async def get_current_user_data(token: str, session: AsyncSession = Depends(get_
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
+async def show_cart(token: str, session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+
+    shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart.customerid == user.userid))
+    shoppingCart = shoppingCart.first()
+    if not shoppingCart:
+        raise HTTPException(status_code=404, detail="shoppingCart not found")
+
+    cart_items = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == shoppingCart.shoppingcartid))
+    cart_items = cart_items.all()
+
+    categorized_books = {}
+    for item in cart_items:
+        book = await session.scalars(select(Book).where(Book.bookid == item.bookid))
+        book = book.first()
+        seller_id = book.sellerid
+        if seller_id not in categorized_books:
+            categorized_books[seller_id] = []
+
+        picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == item.bookid).order_by(Picture_List.pictureid))
+        picture = picture.first()
+        cart_details = ShoppingCartList(
+            name=book.name,
+            picturepath=picture.picturepath if picture else "",
+            price=book.price
+        )
+        categorized_books[seller_id].append(cart_details)
+    return categorized_books
+
 
 @app.get("/")
 async def read_root():
@@ -208,35 +238,21 @@ async def get_book_details(book_id: int, session: AsyncSession = Depends(get_ses
     )
 
 ## shopping cart
-@app.get("/show-cart", response_model=Dict[int, List[ShoppingCartList]])
-async def show_cart(token: str, session: AsyncSession = Depends(get_session)):
-    user = await get_current_user_data(token, session)
 
-    shoppingCart = await session.scalars(select(Shopping_Cart).where(Shopping_Cart.customerid == user.userid))
-    shoppingCart = shoppingCart.first()
-    if not shoppingCart:
-        raise HTTPException(status_code=404, detail="shoppingCart not found")
+@app.get("/show-cart/seller")
+async def seller_in_cart(token: str, session: AsyncSession = Depends(get_session)):
+    cart = await show_cart(token, session)
+    seller_id = list(cart.keys())
+    seller_name_list = []
+    for i in seller_id:
+        seller_name = await session.scalars(select(Member.name).where(Member.userid == i))
+        seller_name_list.append(seller_name.first())
+    return seller_name_list
 
-    cart_items = await session.scalars(select(Cart_List).where(Cart_List.shoppingcartid == shoppingCart.shoppingcartid))
-    cart_items = cart_items.all()
-
-    categorized_books = {}
-    for item in cart_items:
-        book = await session.scalars(select(Book).where(Book.bookid == item.bookid))
-        book = book.first()
-        seller_id = book.sellerid
-        if seller_id not in categorized_books:
-            categorized_books[seller_id] = []
-
-        picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == item.bookid).order_by(Picture_List.pictureid))
-        picture = picture.first()
-        cart_details = ShoppingCartList(
-            name=book.name,
-            picturepath=picture.picturepath if picture else "",
-            price=book.price
-        )
-        categorized_books[seller_id].append(cart_details)
-    return categorized_books
+@app.get("/show-cart/books", response_model = list[ShoppingCartList])
+async def books_in_cart(seller_id: int, token: str, session: AsyncSession = Depends(get_session)):
+    cart = await show_cart(token, session)
+    return cart[seller_id]
 
 
 @app.post("/add-to-cart/{book_id}")
@@ -455,5 +471,25 @@ async def remove_from_address(token: str, address_id: int, session: AsyncSession
         return {"message": f"Failed to remove address {address_id}"}
     else:
         return {"message": f"Successfully removed address {address_id}"}
-
-# order
+    
+# checkout
+@app.get("/checkout/{seller_id}", response_model = CheckoutList)
+async def checkout(seller_id: int, shipping_options: str, token: str, session: AsyncSession = Depends(get_session)):
+    seller_name = await session.scalars(select(Member.name).where(Member.userid == seller_id))
+    seller_name = seller_name.first()
+    cart = await show_cart(token, session)
+    books = cart[seller_id]
+    books_total = sum(i.price for i in books)
+    if shipping_options == '7-ELEVEN' or shipping_options == '全家':
+        shipping_fee = 60
+    elif shipping_options == '快遞':
+        shipping_fee = 120
+    elif shipping_options == '面交':
+        shipping_fee = 0
+    return CheckoutList(seller_name=seller_name, 
+                        books=books, 
+                        items=len(books), 
+                        books_total=books_total,
+                        shipping_options=shipping_options,
+                        shipping_fee=shipping_fee,
+                        total_amount=books_total+shipping_fee) 
