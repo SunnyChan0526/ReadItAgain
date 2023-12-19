@@ -115,20 +115,20 @@ CREATE TABLE DISCOUNT (
     DiscountRate FLOAT,
     EventTag VARCHAR(50),
     MinimumAmountForDiscount INTEGER
-    CONSTRAINT check_shipping_fee_type CHECK (Type != 'shipping fee' OR (Type = 'shipping fee' AND MinimumAmountForDiscount IS NOT NULL)),
-    CONSTRAINT check_special_event_type CHECK (Type != 'special event' OR (Type = 'special event' AND EventTag IS NOT NULL)),
-    CONSTRAINT check_seasoning_type CHECK (Type != 'seasoning' OR (Type = 'seasoning' AND DiscountRate IS NOT NULL AND MinimumAmountForDiscount IS NOT NULL))
+    CONSTRAINT check_shipping_fee_type CHECK (Type != 'shipping fee' OR (Type = 'shipping fee' AND MinimumAmountForDiscount IS NOT NULL)), --shipping fee 一定要配最小applied門檻
+    CONSTRAINT check_special_event_type CHECK (Type != 'special event' OR (Type = 'special event' AND EventTag IS NOT NULL)), --special event一定要有event tag
+    CONSTRAINT check_seasoning_type CHECK (Type != 'seasoning' OR (Type = 'seasoning' AND DiscountRate IS NOT NULL AND MinimumAmountForDiscount IS NOT NULL)) --seasoning一定要有折價Rate且最小applied金額
 );
 
 
 -- Insert fake data into DISCOUNT table
 INSERT INTO DISCOUNT (SellerID, Name, Type, Description, StartDate, EndDate, DiscountRate, EventTag, MinimumAmountForDiscount)
 VALUES 
-(2, '暑期促銷', 'seasoning', '所有書籍9折', '2023-07-01 00:00:00', '2023-08-31 23:59:59', 0.9, null, 200),
-(2, '免運券', 'shipping fee', '滿200免運費', '2023-07-01 00:00:00', '2023-08-31 23:59:59', null, null, 200),
-(2, '好禮額外送', 'special event', '現在買小王子就額外送親子繪本', '2023-07-01 00:00:00', '2023-08-31 23:59:59', null, '額外好禮', null),
-(3, '50折價券', 'seasoning', '只要滿300額外折價50元', '2023-07-01 00:00:00', '2023-08-31 23:59:59', 50.0, null, 200),
-(3, '買一送一', 'special event', '現在哈利波特買一送一', '2023-07-01 00:00:00', '2023-08-31 23:59:59', null, '買一送一', null);
+(2, '暑期促銷', 'seasoning', '所有書籍9折', '2023-07-01 00:00:00', '2024-02-01 23:59:59', 0.9, null, 200),
+(2, '免運券', 'shipping fee', '滿200免運費', '2023-07-01 00:00:00', '2024-02-01 23:59:59', null, null, 200),
+(2, '好禮額外送', 'special event', '現在買小王子就額外送親子繪本', '2023-07-01 00:00:00', '2024-02-01 23:59:59', null, '額外好禮', null),
+(3, '50折價券', 'seasoning', '只要滿200額外折價50元', '2023-07-01 00:00:00', '2024-02-01 23:59:59', 50.0, null, 200),
+(3, '買一送一', 'special event', '現在哈利波特買一送一', '2023-07-01 00:00:00', '2024-02-01 23:59:59', null, '買一送一', null);
 
 
 
@@ -152,8 +152,8 @@ CREATE TABLE BOOK (
 
 -- Insert fake data into BOOK table
 INSERT INTO BOOK (SellerID, OrderID, DiscountCode, ISBN, ShippingLocation, ShippingMethod, Name, Condition, Price, Description, Category, State) VALUES 
-(1, null, null, '978-3-16-148410-0', '台北市', '郵寄', '哈利波特', '新', 500, '這是一本關於魔法的書。', 'Fantasy', 'on sale'),
-(2, null, null, '978-3-16-148411-7', '高雄市', '快遞', '小王子', '二手', 300, '一本經典的兒童文學作品。', 'Children', 'on sale'),
+(3, null, 5, '978-3-16-148410-0', '台北市', '郵寄', '哈利波特', '新', 500, '這是一本關於魔法的書。', 'Fantasy', 'on sale'),
+(2, null, 3, '978-3-16-148411-7', '高雄市', '快遞', '小王子', '二手', 300, '一本經典的兒童文學作品。', 'Children', 'on sale'),
 (2, 1, null, '978-3-16-148411-8', '高雄市', '快遞', '微積分', '二手', 200, '北科大一微積分', 'Math', 'sold'),
 (3, null, null, '978-3-16-148411-8', '高雄市', '快遞', '小王子', '二手', 200, '一本經典的兒童文學作品。', 'Children', 'on sale');
 
