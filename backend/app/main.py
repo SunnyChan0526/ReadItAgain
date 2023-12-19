@@ -9,9 +9,10 @@ from typing import Optional, List, Dict
 from sqlmodel import select
 from sqlalchemy import update, insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List
-from app.models import BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit
+from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List, Discount
+from app.models import BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit, DiscountInfo, CheckoutList
 from .config import settings
+from datetime import datetime
 import shutil, os
 
 @asynccontextmanager
@@ -456,13 +457,12 @@ async def remove_from_address(token: str, address_id: int, session: AsyncSession
     else:
         return {"message": f"Successfully removed address {address_id}"}
 
-# 不知道需不需要token驗證
-@app.get("/checkout/select-coupon/{type}")
+
+@app.get("/checkout/select-coupon", response_model=Dict[str, List[DiscountInfo]])
 async def select_coupon(
-    # token: str,
-    type: str = Query("all"),
     seller_id: int,
-    # book_id: list[int],
+    totalcost: int,
+    book_ids: list[int] = Query(None, description='bookid in shopping cart'),
     session: AsyncSession = Depends(get_session)
 ):
     rst = {
@@ -470,13 +470,52 @@ async def select_coupon(
         "seasoning" : list(),
         "shipping fee" : list()
     }
-    # 記得要check bookid list都要是屬於該seller的
-    coupons = await session.scalars(select(Discount).where(Discount.sellerid == seller_id))
-    for c in coupons:
-        print(c)
+    
+    # 找出所有購物車book的row、所有買家擁有的coupon、購物車中可以applied的優惠券的code
+    coupon_query = await session.scalars(select(Discount).where(Discount.sellerid == seller_id))
+    book_query = []
+    for id in book_ids:
+        book_row = await session.scalars(select(Book).where(Book.bookid == id))
+        book_query += book_row.all()
+    special_event_discountcode_list = []
+    print('-------------------\n')
+    print(book_query)
+    print('\n-------------------')
+    for book in book_query:
+        if book.discountcode:
+            special_event_discountcode_list.append(book.discountcode)
+        if book.sellerid != seller_id:
+            raise HTTPException(status_code=400, detail=f"Book with ID {book.bookid} does not belong to seller {seller_id}")
+    
+    # 將符合的優惠券append到rst
+    current_time = datetime.now()
+    for coupon in coupon_query:
+        if not coupon.startdate < current_time < coupon.enddate: #過期了
+            continue
+        info = DiscountInfo(
+                        discountcode = coupon.discountcode,
+                        name = coupon.name,
+                        type = coupon.type,
+                        description = coupon.description,
+                        startdate = coupon.startdate,
+                        enddate = coupon.enddate,
+                        discountrate = coupon.discountrate,
+                        eventtag = coupon.eventtag,
+                        minimumamountfordiscount = coupon.minimumamountfordiscount,
+                        isable = True
+                    )
+        print('-------------------\n')
+        print(coupon)
+        print('\n-------------------')
+        if coupon.type == 'special event':
+            if coupon.discountcode in special_event_discountcode_list:
+                rst['special event'].append(info)
+        elif coupon.type == 'seasoning':
+            info.isable = True if totalcost >= coupon.minimumamountfordiscount else False
+            rst['seasoning'].append(info)
+        elif coupon.type == 'shipping fee':
+            info.isable = True if totalcost >= coupon.minimumamountfordiscount else False
+            rst['shipping fee'].append(info)
+    return rst
 
-# 1. 呈現出來的折價券要是在活動時內的
-# 2. 從bookID去找有無discount code再去discount抓special event的折價券出來
-# 3. 抓出該seller的所有折價券(seasoning, shipping)都是綁訂單的
-# 回傳內容seasoning, shipping要歸類可使用還是不能使用(因為需要滿足最低條件
-# 回傳要給三種折價類別，其中每個類別也要標記可使用與否
+

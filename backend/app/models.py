@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from datetime import date
+from datetime import date, datetime
 from fastapi import Query
 from typing import Optional
 
@@ -58,3 +58,21 @@ class AddressEdit(BaseModel):
     address: str = Query(None)
     defaultaddress: Optional[bool] = Query(False)
     shippingoption: str = Query(None)
+
+class CheckoutList(BaseModel):
+    seller_name: str
+    books: list[ShoppingCartList]
+
+class DiscountInfo(BaseModel):
+    discountcode: int
+    name: str
+    type: str 
+    description: str 
+    startdate: datetime
+    enddate: datetime
+    discountrate: Optional[float] = None
+    eventtag: Optional[str] = None
+    minimumamountfordiscount: Optional[int] = None
+    isable: bool
+
+    
