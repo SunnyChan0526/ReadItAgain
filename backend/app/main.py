@@ -568,7 +568,7 @@ async def get_seller_store(
 
 # orders
 @app.get("/customer/orders")
-async def view_order_status(token: str,  session: AsyncSession = Depends(get_session)):
+async def view_order_list_customer(token: str,  session: AsyncSession = Depends(get_session)):
     user = await get_current_user_data(token, session)
 
     customer = await session.scalars(select(Customer).where(Customer.customerid == user.userid))
@@ -578,11 +578,33 @@ async def view_order_status(token: str,  session: AsyncSession = Depends(get_ses
 
     orders = await session.scalars(select(Orders).where(Orders.customerid == customer.customerid))
     orders = orders.all()
-    return orders
+
+    orderlist = []
+    for order in orders:
+        book = await session.scalars(select(Book).where(Book.orderid == order.orderid))
+        book = book.first()
+
+        picture_path = ""
+        if book and book.orderid is not "null":
+            picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
+            picture = picture.first()
+            picture_path = picture.picturepath if picture else ""
+
+        order_list = {
+            "orderid": order.orderid,
+            "sellerid": order.sellerid,
+            "bookname": book.name if book else "",
+            # "price": book.price if book else 0,
+            "totalbookcount": order.totalbookcount,
+            "totalamount": order.totalamount,
+            "bookpicturepath": picture_path
+        }
+        orderlist.append(order_list)
+    return orderlist
 
 
 @app.get("/seller/orders")
-async def view_order_status(token: str,  session: AsyncSession = Depends(get_session)):
+async def view_order_list_seller(token: str,  session: AsyncSession = Depends(get_session)):
     user = await get_current_user_data(token, session)
 
     seller = await session.scalars(select(Seller).where(Seller.sellerid == user.userid))
