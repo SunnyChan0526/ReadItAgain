@@ -78,7 +78,7 @@ class AddressEdit(BaseModel):
 class CheckoutList(BaseModel):
     seller_name: str
     books: list[ShoppingCartList]
-    items: int
+    total_book_count: int
     books_total_price: int
     shipping_options: str
     shipping_fee: int
@@ -96,3 +96,12 @@ class DiscountInfo(BaseModel):
     eventtag: Optional[str] = None
     minimumamountfordiscount: Optional[int] = None
     isable: bool
+
+class CheckoutInput(BaseModel):
+    seller_id: int
+    shipping_options: str
+    selected_coupons: list[DiscountInfo]
+    
+# # Order
+# class Orders(BaseModel):
+    
