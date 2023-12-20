@@ -599,3 +599,4 @@ async def order_create(seller_id: int, shipping_options: str, selected_coupons: 
     orders = await session.scalars(select(Orders).order_by(desc(Orders.orderid)))
     orders = orders.first()
     return orders
+

@@ -58,6 +58,7 @@ class ShoppingCartList(BaseModel):
     picturepath: str
     price: int
 
+
 # Address
 class Address(BaseModel):
     addressid: int
