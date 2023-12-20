@@ -89,7 +89,7 @@ class Discount(SQLModel, table=True):
 class Book(SQLModel, table=True):
     bookid: Optional[int] = Field(default=None, primary_key=True)
     sellerid: int = Field(foreign_key="seller.sellerid")
-    orderid: Optional[int] = Field(foreign_key="order.orderid")
+    orderid: Optional[int] = Field(foreign_key="orders.orderid")
     discountcode: Optional[int] = Field(foreign_key="discount.discountcode")
     isbn: str = Field(max_length=20)
     shippinglocation: str = Field(max_length=6)
@@ -134,7 +134,7 @@ class Like_List(SQLModel, table=True):
     customer: Customer = Relationship(back_populates="like_list")
 
 class Applied_List(SQLModel, table=True):
-    orderid: int = Field(default=None, primary_key=True, foreign_key="order.orderid")
+    orderid: int = Field(default=None, primary_key=True, foreign_key="orders.orderid")
     discountcode: int = Field(default=None, primary_key=True, foreign_key="discount.discountcode")
 
     # Relationships

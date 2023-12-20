@@ -3,6 +3,20 @@ from datetime import date, datetime
 from fastapi import Query
 from typing import Optional
 
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class Profile(BaseModel):
+    userid: int
+    name: str
+    email: str
+    phone: str
+    gender: str
+    birthdate: date
+    profilepicture: str
+    
+# Book
 class BookInfo(BaseModel):
     bookid: Optional[int] 
     sellerid: int 
@@ -38,42 +52,19 @@ class BookDetail(BaseModel):
     category: str
     bookpictures: list
 
-
+# ShoppingCart
 class ShoppingCartList(BaseModel):
     name: str
     picturepath: str
     price: int
 
-class CheckoutList(BaseModel):
-    seller_name: str
-    books: list[ShoppingCartList]
-    items: int
-    books_total_price: int
-    shipping_options: str
-    shipping_fee: int
-    coupon_name: list
-    total_amount: int
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-class Profile(BaseModel):
-    userid: int
-    name: str
-    email: str
-    phone: str
-    gender: str
-    birthdate: date
-    profilepicture: str
-
-# show address return model
+# Address
 class Address(BaseModel):
     addressid: int
     address: str
     defaultaddress: bool
 
-# input model
 class AddressCreate(BaseModel):
     address: str
     defaultaddress: bool = False 
@@ -84,10 +75,17 @@ class AddressEdit(BaseModel):
     defaultaddress: Optional[bool] = Query(False)
     shippingoption: str = Query(None)
 
+# Checkout
 class CheckoutList(BaseModel):
     seller_name: str
     books: list[ShoppingCartList]
-
+    total_book_count: int
+    books_total_price: int
+    shipping_options: str
+    shipping_fee: int
+    coupon_name: list
+    total_amount: int
+    
 class DiscountInfo(BaseModel):
     discountcode: int
     name: str
@@ -100,4 +98,11 @@ class DiscountInfo(BaseModel):
     minimumamountfordiscount: Optional[int] = None
     isable: bool
 
+class CheckoutInput(BaseModel):
+    seller_id: int
+    shipping_options: str
+    selected_coupons: list[DiscountInfo]
+    
+# # Order
+# class Orders(BaseModel):
     
