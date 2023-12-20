@@ -7,9 +7,9 @@ from datetime import datetime, timedelta, date
 from jose import JWTError, jwt
 from typing import Optional, List, Dict
 from sqlmodel import select
-from sqlalchemy import update, insert
+from sqlalchemy import update, insert, desc
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List, Discount
+from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List, Discount, Orders
 from app.models import BookInfo, BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit, DiscountInfo, CheckoutList
 from .config import settings
 from datetime import datetime
@@ -112,6 +112,42 @@ async def show_cart(token: str, session: AsyncSession = Depends(get_session)):
         categorized_books[seller_id].append(cart_details)
     return categorized_books
 
+async def checkout(seller_id: int, shipping_options: str, selected_coupons: list[DiscountInfo], token: str, session: AsyncSession = Depends(get_session)):
+    seller_name = await session.scalars(select(Member.name).where(Member.userid == seller_id))
+    seller_name = seller_name.first()
+    cart = await show_cart(token, session)
+    books = []
+    for i in cart[seller_id]:
+        book = ShoppingCartList(
+                    name=i.name,
+                    picturepath=i.picturepath,
+                    price=i.price
+                )
+        books.append(book)
+    books_total_price = sum(i.price for i in books)
+    if shipping_options == '7-ELEVEN' or shipping_options == '全家':
+        shipping_fee = 60
+    elif shipping_options == '快遞':
+        shipping_fee = 120
+    elif shipping_options == '面交':
+        shipping_fee = 0
+    
+    for coupon in selected_coupons:
+        if coupon.type == 'seasoning':
+            if coupon.discountrate >= 1:
+                discount_price = coupon.discountrate
+            else:
+                discount_price = books_total_price * (1 - coupon.discountrate)
+        elif coupon.type == 'shipping fee':
+            shipping_fee = 0
+    return CheckoutList(seller_name=seller_name, 
+                        books=books, 
+                        total_book_count=len(books), 
+                        books_total_price=books_total_price,
+                        shipping_options=shipping_options,
+                        shipping_fee=shipping_fee,
+                        coupon_name = [i.name for i in selected_coupons],
+                        total_amount=books_total_price+shipping_fee-discount_price) 
 
 @app.get("/")
 async def read_root():
@@ -250,7 +286,6 @@ async def get_book_details(book_id: int, session: AsyncSession = Depends(get_ses
     )
 
 ## shopping cart
-
 @app.get("/show-cart/seller")
 async def seller_in_cart(token: str, session: AsyncSession = Depends(get_session)):
     cart = await show_cart(token, session)
@@ -549,39 +584,18 @@ async def select_coupon(
     
 # checkout
 @app.post("/checkout/{seller_id}", response_model = CheckoutList)
-async def checkout(seller_id: int, shipping_options: str, selected_coupons: list[DiscountInfo], token: str, session: AsyncSession = Depends(get_session)):
-    seller_name = await session.scalars(select(Member.name).where(Member.userid == seller_id))
-    seller_name = seller_name.first()
-    cart = await show_cart(token, session)
-    books = []
-    for i in cart[seller_id]:
-        book = ShoppingCartList(
-                    name=i.name,
-                    picturepath=i.picturepath,
-                    price=i.price
-                )
-        books.append(book)
-    books_total_price = sum(i.price for i in books)
-    if shipping_options == '7-ELEVEN' or shipping_options == '全家':
-        shipping_fee = 60
-    elif shipping_options == '快遞':
-        shipping_fee = 120
-    elif shipping_options == '面交':
-        shipping_fee = 0
-    
-    for coupon in selected_coupons:
-        if coupon.type == 'seasoning':
-            if coupon.discountrate >= 1:
-                discount_price = coupon.discountrate
-            else:
-                discount_price = books_total_price * (1 - coupon.discountrate)
-        elif coupon.type == 'shipping fee':
-            shipping_fee = 0
-    return CheckoutList(seller_name=seller_name, 
-                        books=books, 
-                        items=len(books), 
-                        books_total_price=books_total_price,
-                        shipping_options=shipping_options,
-                        shipping_fee=shipping_fee,
-                        coupon_name = [i.name for i in selected_coupons],
-                        total_amount=books_total_price+shipping_fee-discount_price) 
+async def checkout_interface(seller_id: int, shipping_options: str, selected_coupons: list[DiscountInfo], token: str, session: AsyncSession = Depends(get_session)):
+    return await checkout(seller_id, shipping_options, selected_coupons, token, session)
+
+@app.post("/order/{seller_id}")
+async def order_create(seller_id: int, shipping_options: str, selected_coupons: list[DiscountInfo], token: str, session: AsyncSession = Depends(get_session)):
+    checkout_data = await checkout(seller_id, shipping_options, selected_coupons, token, session)
+    user = await get_current_user_data(token, session)
+    stmt = insert(Orders).values(sellerid=seller_id, customerid=user.userid, orderstatus='未送達', 
+                                time=datetime.now(), totalamount=checkout_data.total_amount, totalbookcount=checkout_data.total_book_count
+                                )
+    await session.execute(stmt)
+    await session.commit()
+    orders = await session.scalars(select(Orders).order_by(desc(Orders.orderid)))
+    orders = orders.first()
+    return orders
