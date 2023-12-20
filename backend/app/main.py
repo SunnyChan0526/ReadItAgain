@@ -614,4 +614,26 @@ async def view_order_list_seller(token: str,  session: AsyncSession = Depends(ge
 
     orders = await session.scalars(select(Orders).where(Orders.sellerid == seller.sellerid))
     orders = orders.all()
-    return orders
+
+    orderlist = []
+    for order in orders:
+        book = await session.scalars(select(Book).where(Book.orderid == order.orderid))
+        book = book.first()
+
+        picture_path = ""
+        if book and book.orderid is not "null":
+            picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
+            picture = picture.first()
+            picture_path = picture.picturepath if picture else ""
+
+        order_list = {
+            "orderid": order.orderid,
+            "sellerid": order.sellerid,
+            "bookname": book.name if book else "",
+            # "price": book.price if book else 0,
+            "totalbookcount": order.totalbookcount,
+            "totalamount": order.totalamount,
+            "bookpicturepath": picture_path
+        }
+        orderlist.append(order_list)
+    return orderlist
