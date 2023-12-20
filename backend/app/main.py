@@ -12,7 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List
 from app.models import BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit
 from .config import settings
-import shutil, os
+import shutil
+import os
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -63,6 +65,7 @@ async def get_current_user(token: str = Security(oauth2_scheme)):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+
 async def get_current_user_data(token: str, session: AsyncSession = Depends(get_session)):
     token = await get_current_user(token)
     user = await session.scalars(select(Member).where(Member.memberaccount == token))
@@ -70,6 +73,7 @@ async def get_current_user_data(token: str, session: AsyncSession = Depends(get_
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
 
 async def show_cart(token: str, session: AsyncSession = Depends(get_session)):
     user = await get_current_user_data(token, session)
@@ -100,19 +104,21 @@ async def show_cart(token: str, session: AsyncSession = Depends(get_session)):
         categorized_books[seller_id].append(cart_details)
     return categorized_books
 
-
 @app.get("/")
 async def read_root():
     return "testroot"
 
+
 @app.get("/img")
 async def get_imgs(type: str, imgfilename: str):
-    if(type == 'book'):
+    if (type == 'book'):
         return FileResponse(f"./img/book/{imgfilename}")
-    elif(type == 'avatar'):
+    elif (type == 'avatar'):
         return FileResponse(f"./img/avatar/{imgfilename}")
 
-## Authentication and Authorization
+# Authentication and Authorization
+
+
 @app.post("/register")
 async def register(member: Member, session: AsyncSession = Depends(get_session)):
     hashed_password = get_password_hash(member.password)
@@ -126,7 +132,7 @@ async def register(member: Member, session: AsyncSession = Depends(get_session))
         birthdate=date.fromisoformat(member.birthdate),
         verified="未認證",
         usertype="Standard",
-        profilepicture = "default.jpg"
+        profilepicture="default.jpg"
     )
     session.add(member)
     await session.commit()
@@ -160,7 +166,9 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-## book search
+# book search
+
+
 @app.get("/books", response_model=list[BookSearch])
 async def search_books_by_order(
     name: str = Query(None, min_length=3),
@@ -253,7 +261,6 @@ async def books_in_cart(seller_id: int, token: str, session: AsyncSession = Depe
     cart = await show_cart(token, session)
     return cart[seller_id]
 
-
 @app.post("/add-to-cart/{book_id}")
 async def add_to_cart(token: str, book_id: int, session: AsyncSession = Depends(get_session)):
     user = await get_current_user_data(token, session)
@@ -311,19 +318,22 @@ async def remove_from_cart(token: str, book_id: int, session: AsyncSession = Dep
     else:
         return {"message": f"Successfully removed book {book_id} from cart {shoppingCart.shoppingcartid}"}
 
-## my account   
+# my account
+
+
 @app.post("/change_password")
 async def change_password(
-    token: str,
-    origin_password: str = Query(None), 
-    new_password: str = Query(None), 
-    new_password_check: str = Query(None), 
-    session: AsyncSession = Depends(get_session)):
+        token: str,
+        origin_password: str = Query(None),
+        new_password: str = Query(None),
+        new_password_check: str = Query(None),
+        session: AsyncSession = Depends(get_session)):
     user = await get_current_user_data(token, session)
-    if(verify_password(origin_password, user.password)):
-        if(new_password == new_password_check):
+    if (verify_password(origin_password, user.password)):
+        if (new_password == new_password_check):
             hashed_password = get_password_hash(new_password)
-            stmt = update(Member).where(Member.userid == user.userid).values(password = hashed_password)
+            stmt = update(Member).where(Member.userid ==
+                                        user.userid).values(password=hashed_password)
             await session.execute(stmt)
             await session.commit()
             return {"OK! origin password": origin_password, "new password": new_password}
@@ -332,48 +342,57 @@ async def change_password(
     else:
         return "the origin password is incorrect"
 
-# profile  
+# profile
+
+
 @app.get("/profile/view", response_model=Profile)
 async def view_profile(token: str, session: AsyncSession = Depends(get_session)):
     user = await get_current_user_data(token, session)
     return Profile(
-        userid = user.userid,
-        name = user.memberaccount,
-        email = user.email,
-        phone = user.phone,
-        gender = user.gender,
-        birthdate = user.birthdate,
-        profilepicture = user.profilepicture
+        userid=user.userid,
+        name=user.memberaccount,
+        email=user.email,
+        phone=user.phone,
+        gender=user.gender,
+        birthdate=user.birthdate,
+        profilepicture=user.profilepicture
     )
 
+
 @app.patch("/profile/edit")
-async def edit_profile(token: str, 
+async def edit_profile(token: str,
                        session: AsyncSession = Depends(get_session),
-                        name_input: str = Query(None),
-                        email_input: str = Query(None),
-                        phone_input: str = Query(None),
-                        gender_input: str = Query(None),
-                        birthdate_input: date = Query(None)):
+                       name_input: str = Query(None),
+                       email_input: str = Query(None),
+                       phone_input: str = Query(None),
+                       gender_input: str = Query(None),
+                       birthdate_input: date = Query(None)):
     user = await get_current_user_data(token, session)
-    if name_input:  
-        stmt = update(Member).where(Member.userid == user.userid).values(memberaccount = name_input)
+    if name_input:
+        stmt = update(Member).where(Member.userid ==
+                                    user.userid).values(memberaccount=name_input)
         await session.execute(stmt)
-    if email_input: 
-        stmt = update(Member).where(Member.userid == user.userid).values(email = email_input)
+    if email_input:
+        stmt = update(Member).where(Member.userid ==
+                                    user.userid).values(email=email_input)
         await session.execute(stmt)
     if phone_input:
-        stmt = update(Member).where(Member.userid == user.userid).values(phone = phone_input)
+        stmt = update(Member).where(Member.userid ==
+                                    user.userid).values(phone=phone_input)
         await session.execute(stmt)
     if gender_input:
-        stmt = update(Member).where(Member.userid == user.userid).values(gender = gender_input)
+        stmt = update(Member).where(Member.userid ==
+                                    user.userid).values(gender=gender_input)
         await session.execute(stmt)
     if birthdate_input:
-        stmt = update(Member).where(Member.userid == user.userid).values(birthdate = birthdate_input)
+        stmt = update(Member).where(Member.userid == user.userid).values(
+            birthdate=birthdate_input)
         await session.execute(stmt)
 
     await session.commit()
     return user
-  
+
+
 @app.post("/profile/upload_avatar")
 async def upload_avatar(
     token: str,
@@ -381,7 +400,7 @@ async def upload_avatar(
     session: AsyncSession = Depends(get_session)
 ):
     user = await get_current_user_data(token, session)
-    
+
     if avatar.content_type in ("image/jpg", "image/jpeg", "image/png"):
         img_type = avatar.content_type.split('/')[1]
         file_location = f"./img/avatar/{user.memberaccount}.{img_type}"
@@ -396,11 +415,14 @@ async def upload_avatar(
         user.profilepicture = f"{user.memberaccount}.{img_type}"
         await session.commit()
     else:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="avatar should be an image")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="avatar should be an image")
 
     return {"message": "avatar upload successfully"}
 
 # address
+
+
 @app.get("/address/show", response_model=Dict[str, List[Address]])
 async def show_address(token: str, session: AsyncSession = Depends(get_session)):
     user = await get_current_user_data(token, session)
@@ -424,6 +446,7 @@ async def show_address(token: str, session: AsyncSession = Depends(get_session))
         )
     return categorized_addresses
 
+
 @app.post("/address/create", response_model=Address_List)
 async def create_address(token: str, address: AddressCreate, session: AsyncSession = Depends(get_session)):
     user = await get_current_user_data(token, session)
@@ -437,21 +460,26 @@ async def create_address(token: str, address: AddressCreate, session: AsyncSessi
 
     return new_address
 
+
 @app.patch("/address/edit/{address_id}")
 async def edit_address(token: str, address: AddressEdit, address_id: int, session: AsyncSession = Depends(get_session)):
     user = await get_current_user_data(token, session)
-    if address.address:  
-        stmt = update(Address_List).where(Address_List.customerid == user.userid, Address_List.addressid == address_id).values(address = address.address)
+    if address.address:
+        stmt = update(Address_List).where(Address_List.customerid == user.userid,
+                                          Address_List.addressid == address_id).values(address=address.address)
         await session.execute(stmt)
-    if address.defaultaddress: 
-        stmt = update(Address_List).where(Address_List.customerid == user.userid, Address_List.addressid == address_id).values(defaultaddress = address.defaultaddress)
+    if address.defaultaddress:
+        stmt = update(Address_List).where(Address_List.customerid == user.userid,
+                                          Address_List.addressid == address_id).values(defaultaddress=address.defaultaddress)
         await session.execute(stmt)
     if address.shippingoption:
-        stmt = update(Address_List).where(Address_List.customerid == user.userid, Address_List.addressid == address_id).values(shippingoption = address.shippingoption)
+        stmt = update(Address_List).where(Address_List.customerid == user.userid,
+                                          Address_List.addressid == address_id).values(shippingoption=address.shippingoption)
         await session.execute(stmt)
 
     await session.commit()
     return f"edit address {address_id} OK!"
+
 
 @app.delete("/address/delete/{address_id}")
 async def remove_from_address(token: str, address_id: int, session: AsyncSession = Depends(get_session)):
@@ -459,7 +487,8 @@ async def remove_from_address(token: str, address_id: int, session: AsyncSession
     address = await session.scalars(select(Address_List).where(Address_List.customerid == user.userid, Address_List.addressid == address_id))
     address = address.first()
     if not address:
-        raise HTTPException(status_code=404, detail= f"address {address_id} not found")
+        raise HTTPException(
+            status_code=404, detail=f"address {address_id} not found")
 
     await session.delete(address)
     await session.commit()
@@ -472,3 +501,62 @@ async def remove_from_address(token: str, address_id: int, session: AsyncSession
         return {"message": f"Successfully removed address {address_id}"}
 
 # order
+
+
+# seller-page (for customer)
+async def get_seller_info(seller_id: int, session: AsyncSession = Depends(get_session)):
+    seller = await session.scalars(select(Seller).where(Seller.sellerid == seller_id))
+    seller = seller.first()
+
+    if not seller:
+        raise HTTPException(status_code=404, detail="Seller not found")
+
+    member = await session.scalars(select(Member).where(Member.userid == seller.sellerid))
+    member = member.first()
+
+    seller_info = {
+        "seller_name": member.memberaccount,
+        "seller_avatar": member.profilepicture
+    }
+    return seller_info
+
+
+@app.get("/seller/{seller_id}/store")
+async def get_seller_store(
+    seller_id: int,
+    sort_by: Optional[str] = Query(None, description='Sorting option'),
+    min_price: Optional[int] = Query(None, description="Minimum price"),
+    max_price: Optional[int] = Query(None, description="Maximum price"),
+    session: AsyncSession = Depends(get_session)
+):
+    seller_info = await get_seller_info(seller_id, session)
+
+    query = select(Book).where(Book.sellerid ==
+                               seller_id, Book.state == 'on sale')
+
+    if sort_by == 'price_ascending':
+        query = query.order_by(Book.price)
+    elif sort_by == 'price_descending':
+        query = query.order_by(Book.price.desc())
+
+    if min_price is not None and max_price is not None:
+        query = query.where(Book.price >= min_price, Book.price <= max_price)
+
+    books = await session.scalars(query)
+
+    book_list = []
+    for book in books:
+        picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
+        picture = picture.first()
+        picture_path = picture.picturepath if picture else ""
+
+        book_detail = {
+            "name": book.name,
+            "price": book.price,
+            "shippinglocation": book.shippinglocation,
+            "picturepath": picture_path
+        }
+        book_list.append(book_detail)
+
+    return {"seller_info": seller_info, "books": book_list}
+
