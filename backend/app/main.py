@@ -672,8 +672,46 @@ async def get_order_details_customer(token: str,  order_id: int, session: AsyncS
         "totalbookcount": order.totalbookcount,
         "totalamount": order.totalamount,
         "orderststus": order.orderstatus,
-        "time": order.time,
+        "time": order.time
     }
     return order_detail
 
-# SellerID, CustomerID, OrderStatus, Time, TotalAmount, TotalBookCount, Comment, Stars
+
+@app.get("/seller/orders/{order_id}")
+async def get_order_details_seller(token: str,  order_id: int, session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+
+    seller = await session.scalars(select(Seller).where(Seller.sellerid == user.userid))
+    seller = seller.first()
+    if not seller:
+        raise HTTPException(status_code=404, detail="Seller not found")
+
+    order = await session.scalars(select(Orders).where(Orders.sellerid == seller.sellerid, Orders.orderid == order_id))
+    order = order.first()
+
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    book = await session.scalars(select(Book).where(Book.orderid == order.orderid))
+    book = book.first()
+
+    picture_path = ""
+    if book and book.orderid is not "null":
+        picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
+        picture = picture.first()
+        picture_path = picture.picturepath if picture else ""
+
+    order_detail = {
+        "orderid": order.orderid,
+        "customerid": order.customerid,
+        "bookname": book.name if book else "",
+        "bookpicturepath": picture_path,
+        # "price": book.price if book else 0,
+        "totalbookcount": order.totalbookcount,
+        "totalamount": order.totalamount,
+        "orderststus": order.orderstatus,
+        "time": order.time,
+        "comment": order.comment,
+        "stars": order.stars
+    }
+    return order_detail
