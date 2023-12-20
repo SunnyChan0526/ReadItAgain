@@ -104,6 +104,7 @@ async def show_cart(token: str, session: AsyncSession = Depends(get_session)):
         categorized_books[seller_id].append(cart_details)
     return categorized_books
 
+
 @app.get("/")
 async def read_root():
     return "testroot"
@@ -245,7 +246,9 @@ async def get_book_details(book_id: int, session: AsyncSession = Depends(get_ses
         bookpictures=[p.picturepath for p in pictures]
     )
 
-## shopping cart
+# shopping cart
+
+
 @app.get("/show-cart/seller")
 async def seller_in_cart(token: str, session: AsyncSession = Depends(get_session)):
     cart = await show_cart(token, session)
@@ -256,10 +259,12 @@ async def seller_in_cart(token: str, session: AsyncSession = Depends(get_session
         seller_name_list.append(seller_name.first())
     return seller_name_list
 
-@app.get("/show-cart/books", response_model = list[ShoppingCartList])
+
+@app.get("/show-cart/books", response_model=list[ShoppingCartList])
 async def books_in_cart(seller_id: int, token: str, session: AsyncSession = Depends(get_session)):
     cart = await show_cart(token, session)
     return cart[seller_id]
+
 
 @app.post("/add-to-cart/{book_id}")
 async def add_to_cart(token: str, book_id: int, session: AsyncSession = Depends(get_session)):
@@ -332,7 +337,8 @@ async def change_password(
     if (verify_password(origin_password, user.password)):
         if (new_password == new_password_check):
             hashed_password = get_password_hash(new_password)
-            stmt = update(Member).where(Member.userid == user.userid).values(password=hashed_password)
+            stmt = update(Member).where(Member.userid ==
+                                        user.userid).values(password=hashed_password)
             await session.execute(stmt)
             await session.commit()
             return {"OK! origin password": origin_password, "new password": new_password}
@@ -368,16 +374,20 @@ async def edit_profile(token: str,
                        birthdate_input: date = Query(None)):
     user = await get_current_user_data(token, session)
     if name_input:
-        stmt = update(Member).where(Member.userid == user.userid).values(memberaccount=name_input)
+        stmt = update(Member).where(Member.userid ==
+                                    user.userid).values(memberaccount=name_input)
         await session.execute(stmt)
     if email_input:
-        stmt = update(Member).where(Member.userid == user.userid).values(email=email_input)
+        stmt = update(Member).where(Member.userid ==
+                                    user.userid).values(email=email_input)
         await session.execute(stmt)
     if phone_input:
-        stmt = update(Member).where(Member.userid == user.userid).values(phone=phone_input)
+        stmt = update(Member).where(Member.userid ==
+                                    user.userid).values(phone=phone_input)
         await session.execute(stmt)
     if gender_input:
-        stmt = update(Member).where(Member.userid == user.userid).values(gender=gender_input)
+        stmt = update(Member).where(Member.userid ==
+                                    user.userid).values(gender=gender_input)
         await session.execute(stmt)
     if birthdate_input:
         stmt = update(Member).where(Member.userid == user.userid).values(
@@ -460,13 +470,16 @@ async def create_address(token: str, address: AddressCreate, session: AsyncSessi
 async def edit_address(token: str, address: AddressEdit, address_id: int, session: AsyncSession = Depends(get_session)):
     user = await get_current_user_data(token, session)
     if address.address:
-        stmt = update(Address_List).where(Address_List.customerid == user.userid, Address_List.addressid == address_id).values(address=address.address)
+        stmt = update(Address_List).where(Address_List.customerid == user.userid,
+                                          Address_List.addressid == address_id).values(address=address.address)
         await session.execute(stmt)
     if address.defaultaddress:
-        stmt = update(Address_List).where(Address_List.customerid == user.userid, Address_List.addressid == address_id).values(defaultaddress=address.defaultaddress)
+        stmt = update(Address_List).where(Address_List.customerid == user.userid,
+                                          Address_List.addressid == address_id).values(defaultaddress=address.defaultaddress)
         await session.execute(stmt)
     if address.shippingoption:
-        stmt = update(Address_List).where(Address_List.customerid == user.userid, Address_List.addressid == address_id).values(shippingoption=address.shippingoption)
+        stmt = update(Address_List).where(Address_List.customerid == user.userid,
+                                          Address_List.addressid == address_id).values(shippingoption=address.shippingoption)
         await session.execute(stmt)
 
     await session.commit()
@@ -552,6 +565,8 @@ async def get_seller_store(
 
     return {"seller_info": seller_info, "books": book_list}
 
+
+# orders
 @app.get("/customer/orders")
 async def view_order_status(token: str,  session: AsyncSession = Depends(get_session)):
     user = await get_current_user_data(token, session)
@@ -562,5 +577,19 @@ async def view_order_status(token: str,  session: AsyncSession = Depends(get_ses
         raise HTTPException(status_code=404, detail="Customer not found")
 
     orders = await session.scalars(select(Orders).where(Orders.customerid == customer.customerid))
+    orders = orders.all()
+    return orders
+
+
+@app.get("/seller/orders")
+async def view_order_status(token: str,  session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+
+    seller = await session.scalars(select(Seller).where(Seller.sellerid == user.userid))
+    seller = seller.first()
+    if not seller:
+        raise HTTPException(status_code=404, detail="Seller not found")
+
+    orders = await session.scalars(select(Orders).where(Orders.sellerid == seller.sellerid))
     orders = orders.all()
     return orders
