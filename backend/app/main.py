@@ -548,3 +548,4 @@ async def get_seller_store(
         book_list.append(book_detail)
 
     return {"seller_info": seller_info, "books": book_list}
+    #return {"books": book_list}
