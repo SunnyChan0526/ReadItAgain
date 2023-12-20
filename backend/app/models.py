@@ -3,13 +3,28 @@ from datetime import date, datetime
 from fastapi import Query
 from typing import Optional
 
+class BookInfo(BaseModel):
+    bookid: Optional[int] 
+    sellerid: int 
+    orderid: Optional[int] 
+    discountcode: Optional[int] 
+    isbn: str 
+    shippinglocation: str 
+    shippingmethod: str 
+    name: str 
+    condition: str 
+    price: int
+    description: str 
+    category: str 
+    state: str 
+    picturepath: str
+    
 class BookSearch(BaseModel):
     name: str
     condition: str
     price: int
     shippinglocation: str
     picturepath: str
-
 
 class BookDetail(BaseModel):
     sellerid: int
@@ -33,9 +48,10 @@ class CheckoutList(BaseModel):
     seller_name: str
     books: list[ShoppingCartList]
     items: int
-    books_total: int
+    books_total_price: int
     shipping_options: str
     shipping_fee: int
+    coupon_name: list
     total_amount: int
 
 class Token(BaseModel):
