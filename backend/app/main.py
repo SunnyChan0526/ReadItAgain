@@ -9,7 +9,7 @@ from typing import Optional, List, Dict
 from sqlmodel import select
 from sqlalchemy import update, insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List
+from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List, Orders
 from app.models import BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit
 from .config import settings
 import shutil
@@ -332,8 +332,7 @@ async def change_password(
     if (verify_password(origin_password, user.password)):
         if (new_password == new_password_check):
             hashed_password = get_password_hash(new_password)
-            stmt = update(Member).where(Member.userid ==
-                                        user.userid).values(password=hashed_password)
+            stmt = update(Member).where(Member.userid == user.userid).values(password=hashed_password)
             await session.execute(stmt)
             await session.commit()
             return {"OK! origin password": origin_password, "new password": new_password}
@@ -369,20 +368,16 @@ async def edit_profile(token: str,
                        birthdate_input: date = Query(None)):
     user = await get_current_user_data(token, session)
     if name_input:
-        stmt = update(Member).where(Member.userid ==
-                                    user.userid).values(memberaccount=name_input)
+        stmt = update(Member).where(Member.userid == user.userid).values(memberaccount=name_input)
         await session.execute(stmt)
     if email_input:
-        stmt = update(Member).where(Member.userid ==
-                                    user.userid).values(email=email_input)
+        stmt = update(Member).where(Member.userid == user.userid).values(email=email_input)
         await session.execute(stmt)
     if phone_input:
-        stmt = update(Member).where(Member.userid ==
-                                    user.userid).values(phone=phone_input)
+        stmt = update(Member).where(Member.userid == user.userid).values(phone=phone_input)
         await session.execute(stmt)
     if gender_input:
-        stmt = update(Member).where(Member.userid ==
-                                    user.userid).values(gender=gender_input)
+        stmt = update(Member).where(Member.userid == user.userid).values(gender=gender_input)
         await session.execute(stmt)
     if birthdate_input:
         stmt = update(Member).where(Member.userid == user.userid).values(
@@ -465,16 +460,13 @@ async def create_address(token: str, address: AddressCreate, session: AsyncSessi
 async def edit_address(token: str, address: AddressEdit, address_id: int, session: AsyncSession = Depends(get_session)):
     user = await get_current_user_data(token, session)
     if address.address:
-        stmt = update(Address_List).where(Address_List.customerid == user.userid,
-                                          Address_List.addressid == address_id).values(address=address.address)
+        stmt = update(Address_List).where(Address_List.customerid == user.userid, Address_List.addressid == address_id).values(address=address.address)
         await session.execute(stmt)
     if address.defaultaddress:
-        stmt = update(Address_List).where(Address_List.customerid == user.userid,
-                                          Address_List.addressid == address_id).values(defaultaddress=address.defaultaddress)
+        stmt = update(Address_List).where(Address_List.customerid == user.userid, Address_List.addressid == address_id).values(defaultaddress=address.defaultaddress)
         await session.execute(stmt)
     if address.shippingoption:
-        stmt = update(Address_List).where(Address_List.customerid == user.userid,
-                                          Address_List.addressid == address_id).values(shippingoption=address.shippingoption)
+        stmt = update(Address_List).where(Address_List.customerid == user.userid, Address_List.addressid == address_id).values(shippingoption=address.shippingoption)
         await session.execute(stmt)
 
     await session.commit()
@@ -560,3 +552,15 @@ async def get_seller_store(
 
     return {"seller_info": seller_info, "books": book_list}
 
+@app.get("/customer/orders")
+async def view_order_status(token: str,  session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+
+    customer = await session.scalars(select(Customer).where(Customer.customerid == user.userid))
+    customer = customer.first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    orders = await session.scalars(select(Orders).where(Orders.customerid == customer.customerid))
+    orders = orders.all()
+    return orders
