@@ -637,3 +637,43 @@ async def view_order_list_seller(token: str,  session: AsyncSession = Depends(ge
         }
         orderlist.append(order_list)
     return orderlist
+
+
+@app.get("/customer/orders/{order_id}")
+async def get_order_details_customer(token: str,  order_id: int, session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+
+    customer = await session.scalars(select(Customer).where(Customer.customerid == user.userid))
+    customer = customer.first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    order = await session.scalars(select(Orders).where(Orders.customerid == customer.customerid, Orders.orderid == order_id))
+    order = order.first()
+
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    book = await session.scalars(select(Book).where(Book.orderid == order.orderid))
+    book = book.first()
+
+    picture_path = ""
+    if book and book.orderid is not "null":
+        picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
+        picture = picture.first()
+        picture_path = picture.picturepath if picture else ""
+
+    order_detail = {
+        "orderid": order.orderid,
+        "sellerid": order.sellerid,
+        "bookname": book.name if book else "",
+        "bookpicturepath": picture_path,
+        # "price": book.price if book else 0,
+        "totalbookcount": order.totalbookcount,
+        "totalamount": order.totalamount,
+        "orderststus": order.orderstatus,
+        "time": order.time,
+    }
+    return order_detail
+
+# SellerID, CustomerID, OrderStatus, Time, TotalAmount, TotalBookCount, Comment, Stars
