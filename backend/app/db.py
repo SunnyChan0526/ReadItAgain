@@ -31,7 +31,7 @@ class Customer(SQLModel, table=True):
     customerid: int = Field(default=None, primary_key=True, foreign_key="member.userid")
     # Relationships
     member: Member = Relationship(back_populates="customer")
-    orders: List["Order"] = Relationship(back_populates="customer")
+    orders: List["Orders"] = Relationship(back_populates="customer")
     shopping_cart: Optional["Shopping_Cart"] = Relationship(back_populates="customer")
     like_list: List["Like_List"] = Relationship(back_populates="customer")
     address_list: List["Address_List"] = Relationship(back_populates="customer")
@@ -40,7 +40,7 @@ class Seller(SQLModel, table=True):
     sellerid: int = Field(default=None, primary_key=True, foreign_key="member.userid")
     # Relationships
     member: Member = Relationship(back_populates="seller")
-    orders: List["Order"] = Relationship(back_populates="seller")
+    orders: List["Orders"] = Relationship(back_populates="seller")
     discounts: List["Discount"] = Relationship(back_populates="seller")
     books: List["Book"] = Relationship(back_populates="seller")
     like_list: List["Like_List"] = Relationship(back_populates="seller")
@@ -50,7 +50,7 @@ class Administrator(SQLModel, table=True):
     # Relationship
     member: Member = Relationship(back_populates="administrator")
 
-class Order(SQLModel, table=True):
+class Orders(SQLModel, table=True):
     orderid: Optional[int] = Field(default=None, primary_key=True)
     sellerid: int = Field(foreign_key="seller.sellerid")
     customerid: int = Field(foreign_key="customer.customerid")
@@ -88,7 +88,7 @@ class Discount(SQLModel, table=True):
 class Book(SQLModel, table=True):
     bookid: Optional[int] = Field(default=None, primary_key=True)
     sellerid: int = Field(foreign_key="seller.sellerid")
-    orderid: Optional[int] = Field(foreign_key="order.orderid")
+    orderid: Optional[int] = Field(foreign_key="orders.orderid")
     discountcode: Optional[int] = Field(foreign_key="discount.discountcode")
     isbn: str = Field(max_length=20)
     shippinglocation: str = Field(max_length=6)
@@ -102,7 +102,7 @@ class Book(SQLModel, table=True):
 
     # Relationships
     seller: Seller = Relationship(back_populates="books")
-    order: Optional[Order] = Relationship(back_populates="books")
+    order: Optional[Orders] = Relationship(back_populates="books")
     discount: Optional[Discount] = Relationship(back_populates="books")
     picture_list: List["Picture_List"] = Relationship(back_populates="book")
     cart_list: Optional["Cart_List"] = Relationship(back_populates="book")
@@ -133,11 +133,11 @@ class Like_List(SQLModel, table=True):
     customer: Customer = Relationship(back_populates="like_list")
 
 class Applied_List(SQLModel, table=True):
-    orderid: int = Field(default=None, primary_key=True, foreign_key="order.orderid")
+    orderid: int = Field(default=None, primary_key=True, foreign_key="orders.orderid")
     discountcode: int = Field(default=None, primary_key=True, foreign_key="discount.discountcode")
 
     # Relationships
-    order: Order = Relationship(back_populates="applied_list")
+    order: Orders = Relationship(back_populates="applied_list")
     discount: Discount = Relationship(back_populates="applied_list")
 
 class Cart_List(SQLModel, table=True):
