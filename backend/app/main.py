@@ -774,13 +774,7 @@ async def get_book_details(session: AsyncSession, order_id: int):
 
 
 @app.get("/customer/orders")
-async def view_order_list_customer(
-    token: str,
-    order_status: Optional[str] = Query(None, description='order status'),
-    keyword_type: Optional[str] = Query(None, description='keyword type'),
-    keyword: Optional[str] = Query(None, description='keyword'),
-    session: AsyncSession = Depends(get_session),
-):
+async def view_order_list_customer(token: str,  session: AsyncSession = Depends(get_session)):
     customer = await get_current_customer(token, session)
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
@@ -790,14 +784,8 @@ async def view_order_list_customer(
 
     orderlist = []
     for order in orders:
-        if (order.orderstatus != order_status):
-            continue
-
-
         book_details = await get_book_details(session, order.orderid)
-        if keyword_type == 'Book name':
-            if keyword not in [b.name for b in book_details]:
-                continue
+
         order_list = {
             "orderid": order.orderid,
             "sellerid": order.sellerid,
