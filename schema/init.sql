@@ -101,8 +101,8 @@ CREATE TABLE ORDERS (
 );
 
 -- Insert fake data into ORDER table
-INSERT INTO ORDERS (SellerID, CustomerID, OrderStatus, CancellationReason, Time, TotalAmount, TotalBookCount, Comment, Stars) VALUES
-(2, 1, '送達', null, '2021-01-02 15:00:00', 400, 2, '人很NICE!', 5);
+INSERT INTO ORDERS (SellerID, CustomerID, OrderStatus, Time, TotalAmount, TotalBookCount, Comment, Stars) VALUES
+(2, 1, 'Completed', '2021-01-02 15:00:00', 400, 2, '人很NICE!', 5);
 
 -- Create DISCOUNT table
 CREATE TABLE DISCOUNT (
@@ -154,7 +154,7 @@ CREATE TABLE BOOK (
 INSERT INTO BOOK (SellerID, OrderID, DiscountCode, ISBN, ShippingLocation , Name, Condition, Price, Description, Category, State) VALUES 
 (3, null, 5, '978-3-16-148410-0', '台北市', '哈利波特', '新', 500, '這是一本關於魔法的書。', 'Fantasy', 'on sale'),
 (2, null, 3, '978-3-16-148411-7', '高雄市', '小王子', '二手', 300, '一本經典的兒童文學作品。', 'Children', 'on sale'),
-(2, 1, null, '978-3-16-148411-8', '高雄市', '微積分', '二手', 200, '北科大一微積分', 'Math', 'sold'),
+(2, 1, null, '978-3--148411-8', '高雄市', '微積分', '二手', 200, '北科大一微積分', 'Math', 'sold'),
 (3, null, null, '978-3-16-148411-8', '高雄市', '小王子', '二手', 200, '一本經典的兒童文學作品。', 'Children', 'on sale');
 
 -- Create SHOPPING_CART table
