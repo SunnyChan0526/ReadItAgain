@@ -56,6 +56,7 @@ class Orders(SQLModel, table=True):
     sellerid: int = Field(foreign_key="seller.sellerid")
     customerid: int = Field(foreign_key="customer.customerid")
     orderstatus: str = Field(max_length=50)
+    cancellationreason: Optional[str] = Field(max_length=50)
     time: datetime
     totalamount: int
     totalbookcount: int
