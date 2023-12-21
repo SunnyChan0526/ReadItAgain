@@ -92,6 +92,7 @@ CREATE TABLE ORDERS (
     SellerID INTEGER NOT NULL REFERENCES SELLER(SellerID) ON UPDATE CASCADE ON DELETE CASCADE,
     CustomerID INTEGER NOT NULL REFERENCES CUSTOMER(CustomerID) ON UPDATE CASCADE ON DELETE CASCADE,
     OrderStatus VARCHAR(50) NOT NULL,
+    CancellationReason VARCHAR(50),
     Time TIMESTAMP NOT NULL,
     TotalAmount INTEGER NOT NULL,
     TotalBookCount INTEGER NOT NULL,
@@ -100,8 +101,8 @@ CREATE TABLE ORDERS (
 );
 
 -- Insert fake data into ORDER table
-INSERT INTO ORDERS (SellerID, CustomerID, OrderStatus, Time, TotalAmount, TotalBookCount, Comment, Stars) VALUES
-(2, 1, '送達', '2021-01-02 15:00:00', 400, 2, '人很NICE!', 5);
+INSERT INTO ORDERS (SellerID, CustomerID, OrderStatus, CancellationReason, Time, TotalAmount, TotalBookCount, Comment, Stars) VALUES
+(2, 1, '送達', null, '2021-01-02 15:00:00', 400, 2, '人很NICE!', 5);
 
 -- Create DISCOUNT table
 CREATE TABLE DISCOUNT (

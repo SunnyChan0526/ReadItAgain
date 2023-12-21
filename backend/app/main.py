@@ -654,7 +654,7 @@ async def checkout_discount(seller_id: int, token: str, session: AsyncSession = 
     return return_data
 
 
-@app.post("/order/{seller_id}")
+@app.post("/checkout-to-order/{seller_id}")
 async def order_create(seller_id: int, shipping_options: str, selected_coupons: list[DiscountInfo], token: str, session: AsyncSession = Depends(get_session)):
     checkout_data = await checkout(seller_id, shipping_options, selected_coupons, token, session)
     user = await get_current_user_data(token, session)
@@ -901,3 +901,60 @@ async def view_comment_for_seller(token: str,  order_id: int, session: AsyncSess
         raise HTTPException(status_code=404, detail="Order not found")
 
     return {"comment": comment, "stars": stars}
+
+
+@app.post("/update_orders/{order_id}")
+async def update_orders(order_id: int, session: AsyncSession = Depends(get_session)):
+    sql_update = f'''
+                    update ORDERS
+                    set OrderStatus = '訂單完成'
+                    where OrderID = {order_id}
+                    '''
+    await session.execute(text(sql_update))
+    await session.commit()
+    sql_query = f'''
+                    select * 
+                    from ORDERS
+                    where OrderID = {order_id}
+                '''
+    order = await session.execute(text(sql_query))
+    order = order.first()
+    order_detail = {
+        "orderid": order.orderid,
+        "sellerid": order.sellerid,
+        "totalbookcount": order.totalbookcount,
+        "totalamount": order.totalamount,
+        "orderststus": order.orderstatus,
+        "time": order.time
+    }
+    return order_detail
+
+
+@app.post("/cancel_orders_pr/{order_id}")
+async def customer_cancel_orders_pr(order_id: int, session: AsyncSession = Depends(get_session)):
+    order = await session.scalars(select(Orders).where(Orders.orderid == order_id))
+    order = order.first()
+
+    if order:
+        order.orderstatus = "Cancellation Pending"
+        await session.commit()
+        return {"message": f"Pending of order {order_id} cancellation successfully"}
+    else:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+
+@app.post("/cancel_orders/{order_id}")
+async def customer_cancel_orders_pr(order_id: int, reason: str, is_accepted: bool, session: AsyncSession = Depends(get_session)):
+    order = await session.scalars(select(Orders).where(Orders.orderid == order_id))
+    order = order.first()
+
+    if order:
+        if is_accepted:
+            order.orderstatus = "Cancellation Successfully"
+            order.cancellationreason = reason
+            await session.commit()
+            return {"message": f"Order {order_id} cancelled successfully."}
+        else:
+            return {"message": f"Order {order_id} cancellation request denied."}
+    else:
+        raise HTTPException(status_code=404, detail="Order not found")
