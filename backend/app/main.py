@@ -753,23 +753,30 @@ async def view_order_list_customer(token: str,  session: AsyncSession = Depends(
 
     orderlist = []
     for order in orders:
-        book = await session.scalars(select(Book).where(Book.orderid == order.orderid))
-        book = book.first()
+        books = await session.scalars(select(Book).where(Book.orderid == order.orderid))
+        books = books.all()
 
-        picture_path = ""
-        if book and book.orderid is not "null":
-            picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
-            picture = picture.first()
-            picture_path = picture.picturepath if picture else ""
+        book_details = []
+        for book in books:
+            picture_path = ""
+            if book and book.orderid is not None:
+                pictures = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
+                picture = pictures.first()
+                picture_path = picture.picturepath if picture else ""
+
+            book_detail = {
+                "bookname": book.name if book else "",
+                "bookpicturepath": picture_path,
+                "price": book.price if book else 0,
+            }
+            book_details.append(book_detail)
 
         order_list = {
             "orderid": order.orderid,
             "sellerid": order.sellerid,
-            "bookname": book.name if book else "",
-            # "price": book.price if book else 0,
+            "books": book_details,
             "totalbookcount": order.totalbookcount,
             "totalamount": order.totalamount,
-            "bookpicturepath": picture_path
         }
         orderlist.append(order_list)
     return orderlist
@@ -789,23 +796,30 @@ async def view_order_list_seller(token: str,  session: AsyncSession = Depends(ge
 
     orderlist = []
     for order in orders:
-        book = await session.scalars(select(Book).where(Book.orderid == order.orderid))
-        book = book.first()
+        books = await session.scalars(select(Book).where(Book.orderid == order.orderid))
+        books = books.all()  # Fetch all books related to the order
 
-        picture_path = ""
-        if book and book.orderid is not "null":
-            picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
-            picture = picture.first()
-            picture_path = picture.picturepath if picture else ""
+        book_details = []
+        for book in books:
+            picture_path = ""
+            if book and book.orderid is not None:
+                pictures = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
+                picture = pictures.first()
+                picture_path = picture.picturepath if picture else ""
+
+            book_detail = {
+                "bookname": book.name if book else "",
+                "bookpicturepath": picture_path,
+                "price": book.price if book else 0,
+            }
+            book_details.append(book_detail)
 
         order_list = {
             "orderid": order.orderid,
-            "sellerid": order.sellerid,
-            "bookname": book.name if book else "",
-            # "price": book.price if book else 0,
+            "customerid": order.customerid,
+            "books": book_details,
             "totalbookcount": order.totalbookcount,
             "totalamount": order.totalamount,
-            "bookpicturepath": picture_path
         }
         orderlist.append(order_list)
     return orderlist
