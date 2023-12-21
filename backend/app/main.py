@@ -7,10 +7,10 @@ from datetime import datetime, timedelta, date
 from jose import JWTError, jwt
 from typing import Optional, List, Dict
 from sqlmodel import select
-from sqlalchemy import update, insert, desc
+from sqlalchemy import update, insert, desc, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List, Discount, Orders
-from app.models import BookInfo, BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit, DiscountInfo, CheckoutList
+from app.models import BookInfo, BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit, DiscountInfo, CheckoutList, ShippingMethod
 from .config import settings
 from datetime import datetime
 import shutil, os
@@ -100,7 +100,6 @@ async def show_cart(token: str, session: AsyncSession = Depends(get_session)):
             discountcode=book.discountcode,
             isbn=book.isbn,
             shippinglocation=book.shippinglocation,
-            shippingmethod=book.shippingmethod,
             name=book.name,
             condition=book.condition,
             price=book.price,
@@ -219,7 +218,7 @@ async def search_books_by_order(
 ):
     query = select(Book).where(
         Book.name.contains(name), Book.state == 'on sale')
-
+    
     if sort_by == 'price_ascending':
         query = query.order_by(Book.price)
     elif sort_by == 'price_descending':
@@ -279,7 +278,6 @@ async def get_book_details(book_id: int, session: AsyncSession = Depends(get_ses
         condition=book.condition,
         price=book.price,
         shippinglocation=book.shippinglocation,
-        shippingmethod=book.shippingmethod,
         description=book.description,
         category=book.category,
         bookpictures=[p.picturepath for p in pictures]
@@ -587,6 +585,34 @@ async def select_coupon(
 async def checkout_interface(seller_id: int, shipping_options: str, selected_coupons: list[DiscountInfo], token: str, session: AsyncSession = Depends(get_session)):
     return await checkout(seller_id, shipping_options, selected_coupons, token, session)
 
+@app.get("/checkout/{seller_id}/shipping_method")
+async def checkout_discount(seller_id: int, token: str, session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+    sql_query = f'''
+                select ADDRESS_LIST.ShippingOption, ADDRESS_LIST.Address, ADDRESS_LIST.DefaultAddress
+                    from ADDRESS_LIST
+                    where ADDRESS_LIST.ShippingOption in ( select SHIPPINGMETHOD_LIST.ShippingMethod
+                                                        from SHIPPINGMETHOD_LIST
+                                                        where SHIPPINGMETHOD_LIST.SellerID = {seller_id}) 
+                    and ADDRESS_LIST.CustomerID = {user.userid}
+                ''' 
+    result = await session.execute(text(sql_query))
+    result = result.fetchall()
+    return_data = {}
+    for row in result:
+        if row[0] not in return_data:
+            return_data[row[0]] = []
+        # return_row = ShippingMethod(
+        #                 address=row[1],
+        #                 defaultaddress=row[2]
+        #             )
+        return_data[row[0]].append({
+            'Address': row[0],
+            'DefaultAddress': row[1]
+        })
+    return return_data
+    
+
 @app.post("/order/{seller_id}")
 async def order_create(seller_id: int, shipping_options: str, selected_coupons: list[DiscountInfo], token: str, session: AsyncSession = Depends(get_session)):
     checkout_data = await checkout(seller_id, shipping_options, selected_coupons, token, session)
@@ -599,4 +625,3 @@ async def order_create(seller_id: int, shipping_options: str, selected_coupons: 
     orders = await session.scalars(select(Orders).order_by(desc(Orders.orderid)))
     orders = orders.first()
     return orders
-

@@ -24,7 +24,6 @@ class BookInfo(BaseModel):
     discountcode: Optional[int] 
     isbn: str 
     shippinglocation: str 
-    shippingmethod: str 
     name: str 
     condition: str 
     price: int
@@ -47,7 +46,6 @@ class BookDetail(BaseModel):
     condition: str
     price: int
     shippinglocation: str
-    shippingmethod: str
     description: str
     category: str
     bookpictures: list
@@ -102,7 +100,8 @@ class CheckoutInput(BaseModel):
     seller_id: int
     shipping_options: str
     selected_coupons: list[DiscountInfo]
-    
-# # Order
-# class Orders(BaseModel):
-    
+
+class ShippingMethod(BaseModel):
+    # shippingmethod: str
+    address: str
+    defaultaddress: bool

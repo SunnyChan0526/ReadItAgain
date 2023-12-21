@@ -65,8 +65,8 @@ class Orders(SQLModel, table=True):
     # Relationships
     seller: Seller = Relationship(back_populates="orders")
     customer: Customer = Relationship(back_populates="orders")
-    applied_list: List["Applied_List"] = Relationship(back_populates="orders")
-    books: List["Book"] = Relationship(back_populates="orders")
+    applied_list: List["Applied_List"] = Relationship(back_populates="order")
+    books: List["Book"] = Relationship(back_populates="order")
 
 class Discount(SQLModel, table=True):
     discountcode: Optional[int] = Field(default=None, primary_key=True)
@@ -81,7 +81,7 @@ class Discount(SQLModel, table=True):
     minimumamountfordiscount: Optional[int]
 
     # Relationships
-    seller: Seller = Relationship(back_populates="discount")
+    seller: Seller = Relationship(back_populates="discounts")
     applied_list: List["Applied_List"] = Relationship(back_populates="discount")
     specialized: List["Specialized"] = Relationship(back_populates="discount")
     books: List["Book"] = Relationship(back_populates="discount")
@@ -93,7 +93,6 @@ class Book(SQLModel, table=True):
     discountcode: Optional[int] = Field(foreign_key="discount.discountcode")
     isbn: str = Field(max_length=20)
     shippinglocation: str = Field(max_length=6)
-    shippingmethod: str = Field(max_length=2)
     name: str = Field(max_length=100)
     condition: str = Field(max_length=3)
     price: int
@@ -102,9 +101,9 @@ class Book(SQLModel, table=True):
     state: str = Field(max_length=20)
 
     # Relationships
-    seller: Seller = Relationship(back_populates="book")
-    order: Optional[Orders] = Relationship(back_populates="book")
-    discount: Optional[Discount] = Relationship(back_populates="book")
+    seller: Seller = Relationship(back_populates="books")
+    order: Optional[Orders] = Relationship(back_populates="books")
+    discount: Optional[Discount] = Relationship(back_populates="books")
     picture_list: List["Picture_List"] = Relationship(back_populates="book")
     cart_list: Optional["Cart_List"] = Relationship(back_populates="book")
     specialized: List["Specialized"] = Relationship(back_populates="book")
@@ -161,7 +160,7 @@ class Address_List(SQLModel, table=True):
 
 class ShippingMethod_List(SQLModel, table=True):
     ShippingMethodID: int = Field(default=None, primary_key=True)
-    SellerID: int = Field(foreign_key="seller.SellerID", ondelete="CASCADE", onupdate="CASCADE")
+    SellerID: int = Field(foreign_key="seller.sellerid")
     ShippingMethod: str = Field(max_length=20)
 
     # Relationships
