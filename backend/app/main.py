@@ -7,13 +7,13 @@ from datetime import datetime, timedelta, date
 from jose import JWTError, jwt
 from typing import Optional, List, Dict
 from sqlmodel import select
-from sqlalchemy import update, insert
+from sqlalchemy import update, insert, desc, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List, Orders
-from app.models import BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit
+from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List, Discount, Orders
+from app.models import BookInfo, BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit, DiscountInfo, CheckoutList, ShippingMethod
 from .config import settings
-import shutil
-import os
+from datetime import datetime
+import shutil, os
 
 
 @asynccontextmanager
@@ -96,14 +96,60 @@ async def show_cart(token: str, session: AsyncSession = Depends(get_session)):
 
         picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == item.bookid).order_by(Picture_List.pictureid))
         picture = picture.first()
-        cart_details = ShoppingCartList(
+        cart_details = BookInfo(
+            bookid=book.bookid,
+            sellerid=book.sellerid,
+            orderid=book.orderid,
+            discountcode=book.discountcode,
+            isbn=book.isbn,
+            shippinglocation=book.shippinglocation,
             name=book.name,
-            picturepath=picture.picturepath if picture else "",
-            price=book.price
+            condition=book.condition,
+            price=book.price,
+            description=book.description,
+            category=book.category,
+            state=book.state,
+            picturepath=picture.picturepath if picture else ""    
         )
         categorized_books[seller_id].append(cart_details)
     return categorized_books
 
+async def checkout(seller_id: int, shipping_options: str, selected_coupons: list[DiscountInfo], token: str, session: AsyncSession = Depends(get_session)):
+    seller_name = await session.scalars(select(Member.name).where(Member.userid == seller_id))
+    seller_name = seller_name.first()
+    cart = await show_cart(token, session)
+    books = []
+    for i in cart[seller_id]:
+        book = ShoppingCartList(
+                    name=i.name,
+                    picturepath=i.picturepath,
+                    price=i.price
+                )
+        books.append(book)
+    books_total_price = sum(i.price for i in books)
+    if shipping_options == '7-ELEVEN' or shipping_options == '全家':
+        shipping_fee = 60
+    elif shipping_options == '快遞':
+        shipping_fee = 120
+    elif shipping_options == '面交':
+        shipping_fee = 0
+    
+    for coupon in selected_coupons:
+        if coupon.type == 'seasoning':
+            if coupon.discountrate >= 1:
+                discount_price = coupon.discountrate
+            else:
+                discount_price = books_total_price * (1 - coupon.discountrate)
+        elif coupon.type == 'shipping fee':
+            shipping_fee = 0
+    return CheckoutList(seller_name=seller_name, 
+                        books=books, 
+                        total_book_count=len(books), 
+                        books_total_price=books_total_price,
+                        shipping_options=shipping_options,
+                        shipping_fee=shipping_fee,
+                        coupon_name = [i.name for i in selected_coupons],
+                        total_amount=books_total_price+shipping_fee-discount_price) 
 
 @app.get("/")
 async def read_root():
@@ -180,7 +226,7 @@ async def search_books_by_order(
 ):
     query = select(Book).where(
         Book.name.contains(name), Book.state == 'on sale')
-
+    
     if sort_by == 'price_ascending':
         query = query.order_by(Book.price)
     elif sort_by == 'price_descending':
@@ -240,7 +286,6 @@ async def get_book_details(book_id: int, session: AsyncSession = Depends(get_ses
         condition=book.condition,
         price=book.price,
         shippinglocation=book.shippinglocation,
-        shippingmethod=book.shippingmethod,
         description=book.description,
         category=book.category,
         bookpictures=[p.picturepath for p in pictures]
@@ -263,8 +308,15 @@ async def seller_in_cart(token: str, session: AsyncSession = Depends(get_session
 @app.get("/show-cart/books", response_model=list[ShoppingCartList])
 async def books_in_cart(seller_id: int, token: str, session: AsyncSession = Depends(get_session)):
     cart = await show_cart(token, session)
-    return cart[seller_id]
-
+    result = []
+    for i in cart[seller_id]:
+        book = ShoppingCartList(
+            name=i.name,
+            picturepath=i.picturepath,
+            price=i.price
+        )
+        result.append(book)
+    return result
 
 @app.post("/add-to-cart/{book_id}")
 async def add_to_cart(token: str, book_id: int, session: AsyncSession = Depends(get_session)):
@@ -504,6 +556,109 @@ async def remove_from_address(token: str, address_id: int, session: AsyncSession
         return {"message": f"Failed to remove address {address_id}"}
     else:
         return {"message": f"Successfully removed address {address_id}"}
+
+
+@app.get("/checkout/select-coupon/{seller_id}") #, response_model=Dict[str, List[DiscountInfo]]
+async def select_coupon(
+    token: str,
+    seller_id: int,
+    # totalcost: int,
+    # book_ids: list[int] = Query(None, description='bookid in shopping cart'),
+    session: AsyncSession = Depends(get_session)
+):
+    rst = {
+        "special event" : list(),
+        "seasoning" : list(),
+        "shipping fee" : list()
+    }
+    cart = await show_cart(token, session)
+    book_rows = cart[seller_id]
+
+    # 找出所有購物車book的row、所有買家擁有的coupon、購物車中可以applied的優惠券的code
+    coupon_query = await session.scalars(select(Discount).where(Discount.sellerid == seller_id))
+    special_event_discountcode_list = []
+    totalcost = 0
+    for book in book_rows:
+        totalcost += book.price
+        if book.discountcode:
+            special_event_discountcode_list.append(book.discountcode)
+        if book.sellerid != seller_id:
+            raise HTTPException(status_code=400, detail=f"Book with ID {book.bookid} does not belong to seller {seller_id}")
+    
+    # 將符合的優惠券append到rst
+    current_time = datetime.now()
+    for coupon in coupon_query:
+        if not coupon.startdate < current_time < coupon.enddate: #過期了
+            continue
+        info = DiscountInfo(
+                        discountcode = coupon.discountcode,
+                        name = coupon.name,
+                        type = coupon.type,
+                        description = coupon.description,
+                        startdate = coupon.startdate,
+                        enddate = coupon.enddate,
+                        discountrate = coupon.discountrate,
+                        eventtag = coupon.eventtag,
+                        minimumamountfordiscount = coupon.minimumamountfordiscount,
+                        isable = True
+                    )
+        if coupon.type == 'special event':
+            if coupon.discountcode in special_event_discountcode_list:
+                rst['special event'].append(info)
+        elif coupon.type == 'seasoning':
+            info.isable = True if totalcost >= coupon.minimumamountfordiscount else False
+            rst['seasoning'].append(info)
+        elif coupon.type == 'shipping fee':
+            info.isable = True if totalcost >= coupon.minimumamountfordiscount else False
+            rst['shipping fee'].append(info)
+    return rst
+
+    
+# checkout
+@app.post("/checkout/{seller_id}", response_model = CheckoutList)
+async def checkout_interface(seller_id: int, shipping_options: str, selected_coupons: list[DiscountInfo], token: str, session: AsyncSession = Depends(get_session)):
+    return await checkout(seller_id, shipping_options, selected_coupons, token, session)
+
+@app.get("/checkout/{seller_id}/shipping_method")
+async def checkout_discount(seller_id: int, token: str, session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+    sql_query = f'''
+                select ADDRESS_LIST.ShippingOption, ADDRESS_LIST.Address, ADDRESS_LIST.DefaultAddress
+                    from ADDRESS_LIST
+                    where ADDRESS_LIST.ShippingOption in ( select SHIPPINGMETHOD_LIST.ShippingMethod
+                                                        from SHIPPINGMETHOD_LIST
+                                                        where SHIPPINGMETHOD_LIST.SellerID = {seller_id}) 
+                    and ADDRESS_LIST.CustomerID = {user.userid}
+                ''' 
+    result = await session.execute(text(sql_query))
+    result = result.fetchall()
+    return_data = {}
+    for row in result:
+        if row[0] not in return_data:
+            return_data[row[0]] = []
+        # return_row = ShippingMethod(
+        #                 address=row[1],
+        #                 defaultaddress=row[2]
+        #             )
+        return_data[row[0]].append({
+            'Address': row[0],
+            'DefaultAddress': row[1]
+        })
+    return return_data
+    
+
+@app.post("/order/{seller_id}")
+async def order_create(seller_id: int, shipping_options: str, selected_coupons: list[DiscountInfo], token: str, session: AsyncSession = Depends(get_session)):
+    checkout_data = await checkout(seller_id, shipping_options, selected_coupons, token, session)
+    user = await get_current_user_data(token, session)
+    stmt = insert(Orders).values(sellerid=seller_id, customerid=user.userid, orderstatus='未送達', 
+                                time=datetime.now(), totalamount=checkout_data.total_amount, totalbookcount=checkout_data.total_book_count
+                                )
+    await session.execute(stmt)
+    await session.commit()
+    orders = await session.scalars(select(Orders).order_by(desc(Orders.orderid)))
+    orders = orders.first()
+    return orders
 
 # order
 

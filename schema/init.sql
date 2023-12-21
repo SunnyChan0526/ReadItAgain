@@ -115,20 +115,20 @@ CREATE TABLE DISCOUNT (
     DiscountRate FLOAT,
     EventTag VARCHAR(50),
     MinimumAmountForDiscount INTEGER
-    CONSTRAINT check_shipping_fee_type CHECK (Type != 'shipping fee' OR (Type = 'shipping fee' AND MinimumAmountForDiscount IS NOT NULL)),
-    CONSTRAINT check_special_event_type CHECK (Type != 'special event' OR (Type = 'special event' AND EventTag IS NOT NULL)),
-    CONSTRAINT check_seasoning_type CHECK (Type != 'seasoning' OR (Type = 'seasoning' AND DiscountRate IS NOT NULL AND MinimumAmountForDiscount IS NOT NULL))
+    CONSTRAINT check_shipping_fee_type CHECK (Type != 'shipping fee' OR (Type = 'shipping fee' AND MinimumAmountForDiscount IS NOT NULL)), --shipping fee 一定要配最小applied門檻
+    CONSTRAINT check_special_event_type CHECK (Type != 'special event' OR (Type = 'special event' AND EventTag IS NOT NULL)), --special event一定要有event tag
+    CONSTRAINT check_seasoning_type CHECK (Type != 'seasoning' OR (Type = 'seasoning' AND DiscountRate IS NOT NULL AND MinimumAmountForDiscount IS NOT NULL)) --seasoning一定要有折價Rate且最小applied金額
 );
 
 
 -- Insert fake data into DISCOUNT table
 INSERT INTO DISCOUNT (SellerID, Name, Type, Description, StartDate, EndDate, DiscountRate, EventTag, MinimumAmountForDiscount)
 VALUES 
-(2, '暑期促銷', 'seasoning', '所有書籍9折', '2023-07-01 00:00:00', '2023-08-31 23:59:59', 0.9, null, 200),
-(2, '免運券', 'shipping fee', '滿200免運費', '2023-07-01 00:00:00', '2023-08-31 23:59:59', null, null, 200),
-(2, '好禮額外送', 'special event', '現在買小王子就額外送親子繪本', '2023-07-01 00:00:00', '2023-08-31 23:59:59', null, '額外好禮', null),
-(3, '50折價券', 'seasoning', '只要滿300額外折價50元', '2023-07-01 00:00:00', '2023-08-31 23:59:59', 50.0, null, 200),
-(3, '買一送一', 'special event', '現在哈利波特買一送一', '2023-07-01 00:00:00', '2023-08-31 23:59:59', null, '買一送一', null);
+(2, '暑期促銷', 'seasoning', '所有書籍9折', '2023-07-01 00:00:00', '2024-02-01 23:59:59', 0.9, null, 200),
+(2, '免運券', 'shipping fee', '滿200免運費', '2023-07-01 00:00:00', '2024-02-01 23:59:59', null, null, 200),
+(2, '好禮額外送', 'special event', '現在買小王子就額外送親子繪本', '2023-07-01 00:00:00', '2024-02-01 23:59:59', null, '額外好禮', null),
+(3, '50折價券', 'seasoning', '只要滿200額外折價50元', '2023-07-01 00:00:00', '2024-02-01 23:59:59', 50.0, null, 200),
+(3, '買一送一', 'special event', '現在哈利波特買一送一', '2023-07-01 00:00:00', '2024-02-01 23:59:59', null, '買一送一', null);
 
 
 
@@ -141,7 +141,6 @@ CREATE TABLE BOOK (
     DiscountCode INTEGER REFERENCES DISCOUNT(DiscountCode) ON UPDATE CASCADE ON DELETE CASCADE,
     ISBN VARCHAR(20) NOT NULL,
     ShippingLocation VARCHAR(6) NOT NULL,
-    ShippingMethod VARCHAR(2) NOT NULL,
     Name VARCHAR(100) NOT NULL,
     Condition VARCHAR(3) NOT NULL,
     Price INTEGER NOT NULL,
@@ -151,11 +150,11 @@ CREATE TABLE BOOK (
 );
 
 -- Insert fake data into BOOK table
-INSERT INTO BOOK (SellerID, OrderID, DiscountCode, ISBN, ShippingLocation, ShippingMethod, Name, Condition, Price, Description, Category, State) VALUES 
-(1, null, null, '978-3-16-148410-0', '台北市', '郵寄', '哈利波特', '新', 500, '這是一本關於魔法的書。', 'Fantasy', 'on sale'),
-(2, null, null, '978-3-16-148411-7', '高雄市', '快遞', '小王子', '二手', 300, '一本經典的兒童文學作品。', 'Children', 'on sale'),
-(2, 1, null, '978-3-16-148411-8', '高雄市', '快遞', '微積分', '二手', 200, '北科大一微積分', 'Math', 'sold'),
-(3, null, null, '978-3-16-148411-8', '高雄市', '快遞', '小王子', '二手', 200, '一本經典的兒童文學作品。', 'Children', 'on sale');
+INSERT INTO BOOK (SellerID, OrderID, DiscountCode, ISBN, ShippingLocation , Name, Condition, Price, Description, Category, State) VALUES 
+(3, null, 5, '978-3-16-148410-0', '台北市', '哈利波特', '新', 500, '這是一本關於魔法的書。', 'Fantasy', 'on sale'),
+(2, null, 3, '978-3-16-148411-7', '高雄市', '小王子', '二手', 300, '一本經典的兒童文學作品。', 'Children', 'on sale'),
+(2, 1, null, '978-3-16-148411-8', '高雄市', '微積分', '二手', 200, '北科大一微積分', 'Math', 'sold'),
+(3, null, null, '978-3-16-148411-8', '高雄市', '小王子', '二手', 200, '一本經典的兒童文學作品。', 'Children', 'on sale');
 
 -- Create SHOPPING_CART table
 CREATE TABLE PICTURE_LIST (
@@ -206,18 +205,18 @@ INSERT INTO APPLIED_LIST (OrderID, DiscountCode) VALUES
 (1, 2);
 
 -- Create Cart_List TABLE
-CREATE TABLE Cart_List (
+CREATE TABLE CART_LIST (
     ShoppingCartID INTEGER NOT NULL REFERENCES SHOPPING_CART(ShoppingCartID) ON UPDATE CASCADE ON DELETE CASCADE,
     BookID INTEGER NOT NULL REFERENCES BOOK(BookID) ON UPDATE CASCADE ON DELETE CASCADE,
     id SERIAL PRIMARY KEY
 );
 
 -- Insert fake data into Cart_List table
-INSERT INTO Cart_List VALUES 
+INSERT INTO CART_LIST VALUES 
 (1, 1),
 (1, 2);
 
-CREATE TABLE Address_List (
+CREATE TABLE ADDRESS_LIST (
     AddressID SERIAL PRIMARY KEY,
     CustomerID INTEGER REFERENCES CUSTOMER(CustomerID) ON UPDATE CASCADE ON DELETE CASCADE,
     Address VARCHAR(200),
@@ -225,10 +224,43 @@ CREATE TABLE Address_List (
     DefaultAddress BOOLEAN
 );
 
-INSERT INTO Address_List (CustomerID, Address, ShippingOption, DefaultAddress) VALUES 
+INSERT INTO ADDRESS_LIST (CustomerID, Address, ShippingOption, DefaultAddress) VALUES 
 (1, '67169 台中和街巷4號9樓', 'home', true),
-(1, '台北市大安區基隆路二段142之1號及142之2號', '7-11', true),
-(1, '台北市信義區吳興街156巷2弄2號4號1樓', '7-11', false);
+(1, '台北市大安區基隆路二段142之1號及142之2號', '7-ELEVEN', true),
+(1, '台北市信義區吳興街156巷2弄2號4號1樓', '7-ELEVEN', false);
+
+
+CREATE TABLE SHIPPINGMETHOD_LIST (
+    ShippingMethodID SERIAL PRIMARY KEY,
+    SellerID INTEGER REFERENCES SELLER(SellerID) ON UPDATE CASCADE ON DELETE CASCADE,
+    ShippingMethod VARCHAR(20)
+);
+
+INSERT INTO SHIPPINGMETHOD_LIST(SellerID, ShippingMethod) VALUES
+(1, '7-ELEVEN'),
+(2, '7-ELEVEN'),
+(3, '7-ELEVEN'),
+(4, '7-ELEVEN'),
+(5, '7-ELEVEN'),
+(6, '7-ELEVEN'),
+(7, '7-ELEVEN'),
+(8, '7-ELEVEN'),
+(1, '全家'),
+(2, '全家'),
+(3, '全家'),
+(4, '全家'),
+(5, '全家'),
+(6, '全家'),
+(7, '全家'),
+(8, '全家'),
+(1, '快遞'),
+(2, '快遞'),
+(3, '快遞'),
+(4, '快遞'),
+(5, '快遞'),
+(6, '快遞'),
+(7, '快遞'),
+(8, '快遞');
 
 
 -- Create SPECIALIZED TABLE

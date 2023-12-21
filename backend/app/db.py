@@ -44,6 +44,7 @@ class Seller(SQLModel, table=True):
     discounts: List["Discount"] = Relationship(back_populates="seller")
     books: List["Book"] = Relationship(back_populates="seller")
     like_list: List["Like_List"] = Relationship(back_populates="seller")
+    shippingmethod_list: List["ShippingMethod_List"] = Relationship(back_populates="seller")
 
 class Administrator(SQLModel, table=True):
     administratorid: int = Field(default=None, primary_key=True, foreign_key="member.userid")
@@ -92,7 +93,6 @@ class Book(SQLModel, table=True):
     discountcode: Optional[int] = Field(foreign_key="discount.discountcode")
     isbn: str = Field(max_length=20)
     shippinglocation: str = Field(max_length=6)
-    shippingmethod: str = Field(max_length=2)
     name: str = Field(max_length=100)
     condition: str = Field(max_length=3)
     price: int
@@ -158,6 +158,13 @@ class Address_List(SQLModel, table=True):
     # Relationships
     customer: Customer = Relationship(back_populates="address_list")
 
+class ShippingMethod_List(SQLModel, table=True):
+    ShippingMethodID: int = Field(default=None, primary_key=True)
+    SellerID: int = Field(foreign_key="seller.sellerid")
+    ShippingMethod: str = Field(max_length=20)
+
+    # Relationships
+    seller: Seller = Relationship(back_populates="shippingmethod_list")
 
 class Specialized(SQLModel, table=True):
     discountcode: int = Field(default=None, primary_key=True, foreign_key="discount.discountcode")
