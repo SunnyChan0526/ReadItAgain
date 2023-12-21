@@ -101,7 +101,7 @@ CREATE TABLE ORDERS (
 
 -- Insert fake data into ORDER table
 INSERT INTO ORDERS (SellerID, CustomerID, OrderStatus, Time, TotalAmount, TotalBookCount, Comment, Stars) VALUES
-(2, 1, '送達', '2021-01-02 15:00:00', 400, 2, '人很NICE!', 5);
+(2, 1, 'Completed', '2021-01-02 15:00:00', 400, 2, '人很NICE!', 5);
 
 -- Create DISCOUNT table
 CREATE TABLE DISCOUNT (
@@ -267,7 +267,7 @@ INSERT INTO SHIPPINGMETHOD_LIST(SellerID, ShippingMethod) VALUES
 CREATE TABLE SPECIALIZED (
     DiscountCode INTEGER REFERENCES DISCOUNT(DiscountCode) ON UPDATE CASCADE ON DELETE CASCADE,
     BookID INTEGER REFERENCES BOOK(BookID) ON UPDATE CASCADE ON DELETE CASCADE,
-    PRIMARY KEY (DiscountCode, BookID16)
+    PRIMARY KEY (DiscountCode, BookID)
 );
 
 -- Insert fake data into SPECIALIZED table
