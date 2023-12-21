@@ -153,7 +153,7 @@ CREATE TABLE BOOK (
 INSERT INTO BOOK (SellerID, OrderID, DiscountCode, ISBN, ShippingLocation , Name, Condition, Price, Description, Category, State) VALUES 
 (3, null, 5, '978-3-16-148410-0', '台北市', '哈利波特', '新', 500, '這是一本關於魔法的書。', 'Fantasy', 'on sale'),
 (2, null, 3, '978-3-16-148411-7', '高雄市', '小王子', '二手', 300, '一本經典的兒童文學作品。', 'Children', 'on sale'),
-(2, 1, null, '978-3-16-148411-8', '高雄市', '微積分', '二手', 200, '北科大一微積分', 'Math', 'sold'),
+(2, 1, null, '978-3--148411-8', '高雄市', '微積分', '二手', 200, '北科大一微積分', 'Math', 'sold'),
 (3, null, null, '978-3-16-148411-8', '高雄市', '小王子', '二手', 200, '一本經典的兒童文學作品。', 'Children', 'on sale');
 
 -- Create SHOPPING_CART table
@@ -267,7 +267,7 @@ INSERT INTO SHIPPINGMETHOD_LIST(SellerID, ShippingMethod) VALUES
 CREATE TABLE SPECIALIZED (
     DiscountCode INTEGER REFERENCES DISCOUNT(DiscountCode) ON UPDATE CASCADE ON DELETE CASCADE,
     BookID INTEGER REFERENCES BOOK(BookID) ON UPDATE CASCADE ON DELETE CASCADE,
-    PRIMARY KEY (DiscountCode, BookID)
+    PRIMARY KEY (DiscountCode, BookID16)
 );
 
 -- Insert fake data into SPECIALIZED table
