@@ -619,11 +619,11 @@ async def select_coupon(
 async def checkout_interface(seller_id: int, shipping_options: str, selected_coupons: list[DiscountInfo], token: str, session: AsyncSession = Depends(get_session)):
     return await checkout(seller_id, shipping_options, selected_coupons, token, session)
 
-@app.get("/checkout/{seller_id}/shipping_method")
+@app.get("/checkout/{seller_id}/shipping_method", response_model = Dict[str, List[ShippingMethod]])
 async def checkout_discount(seller_id: int, token: str, session: AsyncSession = Depends(get_session)):
     user = await get_current_user_data(token, session)
     sql_query = f'''
-                select ADDRESS_LIST.ShippingOption, ADDRESS_LIST.Address, ADDRESS_LIST.DefaultAddress
+                    select ADDRESS_LIST.ShippingOption, ADDRESS_LIST.Address, ADDRESS_LIST.DefaultAddress
                     from ADDRESS_LIST
                     where ADDRESS_LIST.ShippingOption in ( select SHIPPINGMETHOD_LIST.ShippingMethod
                                                         from SHIPPINGMETHOD_LIST
@@ -634,19 +634,18 @@ async def checkout_discount(seller_id: int, token: str, session: AsyncSession = 
     result = result.fetchall()
     return_data = {}
     for row in result:
-        if row[0] not in return_data:
-            return_data[row[0]] = []
-        # return_row = ShippingMethod(
-        #                 address=row[1],
-        #                 defaultaddress=row[2]
-        #             )
-        return_data[row[0]].append({
-            'Address': row[0],
-            'DefaultAddress': row[1]
-        })
+        shipping_method = row[0]
+        address = row[1]
+        default_address = row[2]
+        if shipping_method not in return_data:
+            return_data[shipping_method] = []
+        return_row = ShippingMethod(
+                        address=address,
+                        defaultaddress=default_address
+                    )
+        return_data[shipping_method].append(return_row)
     return return_data
     
-
 @app.post("/order/{seller_id}")
 async def order_create(seller_id: int, shipping_options: str, selected_coupons: list[DiscountInfo], token: str, session: AsyncSession = Depends(get_session)):
     checkout_data = await checkout(seller_id, shipping_options, selected_coupons, token, session)
@@ -658,6 +657,17 @@ async def order_create(seller_id: int, shipping_options: str, selected_coupons: 
     await session.commit()
     orders = await session.scalars(select(Orders).order_by(desc(Orders.orderid)))
     orders = orders.first()
+    
+    cart = await show_cart(token, session)
+    book_rows = cart[seller_id]
+    for book in book_rows:
+        sql_update = f'''
+                        update BOOK
+                        set OrderID = {orders.orderid}
+                        where BookID = {book.bookid}
+                      '''
+        await session.execute(text(sql_update))
+        await session.commit()
     return orders
 
 # order
