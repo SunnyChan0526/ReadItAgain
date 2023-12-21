@@ -886,3 +886,18 @@ async def get_order_details_seller(token: str,  order_id: int, session: AsyncSes
 
     order_detail = await get_order_details(session, "seller", seller.sellerid, order_id)
     return order_detail
+
+
+@app.get("/seller/orders/{order_id}/comment")
+async def view_comment_for_seller(token: str,  order_id: int, session: AsyncSession = Depends(get_session)):
+    seller = await get_current_seller(token, session)
+    if not seller:
+        raise HTTPException(status_code=404, detail="Seller not found")
+
+    comment = await session.scalar(select(Orders.comment).where(Orders.orderid == order_id))
+    stars = await session.scalar(select(Orders.stars).where(Orders.orderid == order_id))
+
+    if comment is None and stars is None:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    return {"comment": comment, "stars": stars}
