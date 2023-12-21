@@ -7,11 +7,12 @@ from datetime import datetime, timedelta, date
 from jose import JWTError, jwt
 from typing import Optional, List, Dict
 from sqlmodel import select
-from sqlalchemy import update, insert
+from sqlalchemy import update, insert, desc, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List, Orders
-from app.models import BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit
+from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List, Discount, Orders
+from app.models import BookInfo, BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit, DiscountInfo, CheckoutList, ShippingMethod
 from .config import settings
+from datetime import datetime
 import shutil
 import os
 
@@ -96,13 +97,61 @@ async def show_cart(token: str, session: AsyncSession = Depends(get_session)):
 
         picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == item.bookid).order_by(Picture_List.pictureid))
         picture = picture.first()
-        cart_details = ShoppingCartList(
+        cart_details = BookInfo(
+            bookid=book.bookid,
+            sellerid=book.sellerid,
+            orderid=book.orderid,
+            discountcode=book.discountcode,
+            isbn=book.isbn,
+            shippinglocation=book.shippinglocation,
             name=book.name,
-            picturepath=picture.picturepath if picture else "",
-            price=book.price
+            condition=book.condition,
+            price=book.price,
+            description=book.description,
+            category=book.category,
+            state=book.state,
+            picturepath=picture.picturepath if picture else ""
         )
         categorized_books[seller_id].append(cart_details)
     return categorized_books
+
+
+async def checkout(seller_id: int, shipping_options: str, selected_coupons: list[DiscountInfo], token: str, session: AsyncSession = Depends(get_session)):
+    seller_name = await session.scalars(select(Member.name).where(Member.userid == seller_id))
+    seller_name = seller_name.first()
+    cart = await show_cart(token, session)
+    books = []
+    for i in cart[seller_id]:
+        book = ShoppingCartList(
+            name=i.name,
+            picturepath=i.picturepath,
+            price=i.price
+        )
+        books.append(book)
+    books_total_price = sum(i.price for i in books)
+    if shipping_options == '7-ELEVEN' or shipping_options == '全家':
+        shipping_fee = 60
+    elif shipping_options == '快遞':
+        shipping_fee = 120
+    elif shipping_options == '面交':
+        shipping_fee = 0
+
+    for coupon in selected_coupons:
+        if coupon.type == 'seasoning':
+            if coupon.discountrate >= 1:
+                discount_price = coupon.discountrate
+            else:
+                discount_price = books_total_price * (1 - coupon.discountrate)
+        elif coupon.type == 'shipping fee':
+            shipping_fee = 0
+    return CheckoutList(seller_name=seller_name,
+                        books=books,
+                        total_book_count=len(books),
+                        books_total_price=books_total_price,
+                        shipping_options=shipping_options,
+                        shipping_fee=shipping_fee,
+                        coupon_name=[i.name for i in selected_coupons],
+                        total_amount=books_total_price+shipping_fee-discount_price)
 
 
 @app.get("/")
@@ -240,7 +289,6 @@ async def get_book_details(book_id: int, session: AsyncSession = Depends(get_ses
         condition=book.condition,
         price=book.price,
         shippinglocation=book.shippinglocation,
-        shippingmethod=book.shippingmethod,
         description=book.description,
         category=book.category,
         bookpictures=[p.picturepath for p in pictures]
@@ -263,7 +311,15 @@ async def seller_in_cart(token: str, session: AsyncSession = Depends(get_session
 @app.get("/show-cart/books", response_model=list[ShoppingCartList])
 async def books_in_cart(seller_id: int, token: str, session: AsyncSession = Depends(get_session)):
     cart = await show_cart(token, session)
-    return cart[seller_id]
+    result = []
+    for i in cart[seller_id]:
+        book = ShoppingCartList(
+            name=i.name,
+            picturepath=i.picturepath,
+            price=i.price
+        )
+        result.append(book)
+    return result
 
 
 @app.post("/add-to-cart/{book_id}")
@@ -505,10 +561,126 @@ async def remove_from_address(token: str, address_id: int, session: AsyncSession
     else:
         return {"message": f"Successfully removed address {address_id}"}
 
-# order
 
+# , response_model=Dict[str, List[DiscountInfo]]
+@app.get("/checkout/select-coupon/{seller_id}")
+async def select_coupon(
+    token: str,
+    seller_id: int,
+    # totalcost: int,
+    # book_ids: list[int] = Query(None, description='bookid in shopping cart'),
+    session: AsyncSession = Depends(get_session)
+):
+    rst = {
+        "special event": list(),
+        "seasoning": list(),
+        "shipping fee": list()
+    }
+    cart = await show_cart(token, session)
+    book_rows = cart[seller_id]
+
+    # 找出所有購物車book的row、所有買家擁有的coupon、購物車中可以applied的優惠券的code
+    coupon_query = await session.scalars(select(Discount).where(Discount.sellerid == seller_id))
+    special_event_discountcode_list = []
+    totalcost = 0
+    for book in book_rows:
+        totalcost += book.price
+        if book.discountcode:
+            special_event_discountcode_list.append(book.discountcode)
+        if book.sellerid != seller_id:
+            raise HTTPException(
+                status_code=400, detail=f"Book with ID {book.bookid} does not belong to seller {seller_id}")
+
+    # 將符合的優惠券append到rst
+    current_time = datetime.now()
+    for coupon in coupon_query:
+        if not coupon.startdate < current_time < coupon.enddate:  # 過期了
+            continue
+        info = DiscountInfo(
+            discountcode=coupon.discountcode,
+            name=coupon.name,
+            type=coupon.type,
+            description=coupon.description,
+            startdate=coupon.startdate,
+            enddate=coupon.enddate,
+            discountrate=coupon.discountrate,
+            eventtag=coupon.eventtag,
+            minimumamountfordiscount=coupon.minimumamountfordiscount,
+            isable=True
+        )
+        if coupon.type == 'special event':
+            if coupon.discountcode in special_event_discountcode_list:
+                rst['special event'].append(info)
+        elif coupon.type == 'seasoning':
+            info.isable = True if totalcost >= coupon.minimumamountfordiscount else False
+            rst['seasoning'].append(info)
+        elif coupon.type == 'shipping fee':
+            info.isable = True if totalcost >= coupon.minimumamountfordiscount else False
+            rst['shipping fee'].append(info)
+    return rst
+
+
+# checkout
+@app.post("/checkout/{seller_id}", response_model=CheckoutList)
+async def checkout_interface(seller_id: int, shipping_options: str, selected_coupons: list[DiscountInfo], token: str, session: AsyncSession = Depends(get_session)):
+    return await checkout(seller_id, shipping_options, selected_coupons, token, session)
+
+
+@app.get("/checkout/{seller_id}/shipping_method", response_model=Dict[str, List[ShippingMethod]])
+async def checkout_discount(seller_id: int, token: str, session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+    sql_query = f'''
+                    select ADDRESS_LIST.ShippingOption, ADDRESS_LIST.Address, ADDRESS_LIST.DefaultAddress
+                    from ADDRESS_LIST
+                    where ADDRESS_LIST.ShippingOption in ( select SHIPPINGMETHOD_LIST.ShippingMethod
+                                                        from SHIPPINGMETHOD_LIST
+                                                        where SHIPPINGMETHOD_LIST.SellerID = {seller_id}) 
+                    and ADDRESS_LIST.CustomerID = {user.userid}
+                '''
+    result = await session.execute(text(sql_query))
+    result = result.fetchall()
+    return_data = {}
+    for row in result:
+        shipping_method = row[0]
+        address = row[1]
+        default_address = row[2]
+        if shipping_method not in return_data:
+            return_data[shipping_method] = []
+        return_row = ShippingMethod(
+            address=address,
+            defaultaddress=default_address
+        )
+        return_data[shipping_method].append(return_row)
+    return return_data
+
+
+@app.post("/order/{seller_id}")
+async def order_create(seller_id: int, shipping_options: str, selected_coupons: list[DiscountInfo], token: str, session: AsyncSession = Depends(get_session)):
+    checkout_data = await checkout(seller_id, shipping_options, selected_coupons, token, session)
+    user = await get_current_user_data(token, session)
+    stmt = insert(Orders).values(sellerid=seller_id, customerid=user.userid, orderstatus='未送達',
+                                 time=datetime.now(), totalamount=checkout_data.total_amount, totalbookcount=checkout_data.total_book_count
+                                 )
+    await session.execute(stmt)
+    await session.commit()
+    orders = await session.scalars(select(Orders).order_by(desc(Orders.orderid)))
+    orders = orders.first()
+
+    cart = await show_cart(token, session)
+    book_rows = cart[seller_id]
+    for book in book_rows:
+        sql_update = f'''
+                        update BOOK
+                        set OrderID = {orders.orderid}
+                        where BookID = {book.bookid}
+                      '''
+        await session.execute(text(sql_update))
+        await session.commit()
+    return orders
 
 # seller-page (for customer)
+
+
 async def get_seller_info(seller_id: int, session: AsyncSession = Depends(get_session)):
     seller = await session.scalars(select(Seller).where(Seller.sellerid == seller_id))
     seller = seller.first()
@@ -567,12 +739,49 @@ async def get_seller_store(
 
 
 # orders
-@app.get("/customer/orders")
-async def view_order_list_customer(token: str,  session: AsyncSession = Depends(get_session)):
+async def get_current_customer(token: str, session: AsyncSession):
     user = await get_current_user_data(token, session)
-
     customer = await session.scalars(select(Customer).where(Customer.customerid == user.userid))
-    customer = customer.first()
+    return customer.first()
+
+
+async def get_current_seller(token: str, session: AsyncSession):
+    user = await get_current_user_data(token, session)
+    seller = await session.scalars(select(Seller).where(Seller.sellerid == user.userid))
+    return seller.first()
+
+
+async def get_book_details(session: AsyncSession, order_id: int):
+    books = await session.scalars(select(Book).where(Book.orderid == order_id))
+    books = books.all()
+
+    book_details = []
+    for book in books:
+        picture_path = ""
+        if book and book.orderid is not None:
+            pictures = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
+            picture = pictures.first()
+            picture_path = picture.picturepath if picture else ""
+
+        book_detail = {
+            "bookname": book.name if book else "",
+            "bookpicturepath": picture_path,
+            "price": book.price if book else 0,
+        }
+        book_details.append(book_detail)
+
+    return book_details
+
+
+@app.get("/customer/orders")
+async def view_order_list_customer(
+    token: str,
+    order_status: Optional[str] = Query(None, description='order status'),
+    keyword_type: Optional[str] = Query(None, description='keyword type'),
+    keyword: Optional[str] = Query(None, description='keyword'),
+    session: AsyncSession = Depends(get_session),
+):
+    customer = await get_current_customer(token, session)
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
 
@@ -581,23 +790,20 @@ async def view_order_list_customer(token: str,  session: AsyncSession = Depends(
 
     orderlist = []
     for order in orders:
-        book = await session.scalars(select(Book).where(Book.orderid == order.orderid))
-        book = book.first()
+        if (order.orderstatus != order_status):
+            continue
 
-        picture_path = ""
-        if book and book.orderid is not "null":
-            picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
-            picture = picture.first()
-            picture_path = picture.picturepath if picture else ""
 
+        book_details = await get_book_details(session, order.orderid)
+        if keyword_type == 'Book name':
+            if keyword not in [b.name for b in book_details]:
+                continue
         order_list = {
             "orderid": order.orderid,
             "sellerid": order.sellerid,
-            "bookname": book.name if book else "",
-            # "price": book.price if book else 0,
+            "books": book_details,
             "totalbookcount": order.totalbookcount,
             "totalamount": order.totalamount,
-            "bookpicturepath": picture_path
         }
         orderlist.append(order_list)
     return orderlist
@@ -605,10 +811,7 @@ async def view_order_list_customer(token: str,  session: AsyncSession = Depends(
 
 @app.get("/seller/orders")
 async def view_order_list_seller(token: str,  session: AsyncSession = Depends(get_session)):
-    user = await get_current_user_data(token, session)
-
-    seller = await session.scalars(select(Seller).where(Seller.sellerid == user.userid))
-    seller = seller.first()
+    seller = await get_current_seller(token, session)
     if not seller:
         raise HTTPException(status_code=404, detail="Seller not found")
 
@@ -617,101 +820,96 @@ async def view_order_list_seller(token: str,  session: AsyncSession = Depends(ge
 
     orderlist = []
     for order in orders:
-        book = await session.scalars(select(Book).where(Book.orderid == order.orderid))
-        book = book.first()
-
-        picture_path = ""
-        if book and book.orderid is not "null":
-            picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
-            picture = picture.first()
-            picture_path = picture.picturepath if picture else ""
+        book_details = await get_book_details(session, order.orderid)
 
         order_list = {
             "orderid": order.orderid,
-            "sellerid": order.sellerid,
-            "bookname": book.name if book else "",
-            # "price": book.price if book else 0,
+            "customerid": order.customerid,
+            "books": book_details,
             "totalbookcount": order.totalbookcount,
             "totalamount": order.totalamount,
-            "bookpicturepath": picture_path
         }
         orderlist.append(order_list)
     return orderlist
 
 
-@app.get("/customer/orders/{order_id}")
-async def get_order_details_customer(token: str,  order_id: int, session: AsyncSession = Depends(get_session)):
-    user = await get_current_user_data(token, session)
+async def get_order_details(session: AsyncSession, user_type: str, user_id: int, order_id: int):
+    order_query = None
+    if user_type == "customer":
+        order_query = select(Orders).where(
+            Orders.customerid == user_id, Orders.orderid == order_id)
+    elif user_type == "seller":
+        order_query = select(Orders).where(
+            Orders.sellerid == user_id, Orders.orderid == order_id)
 
-    customer = await session.scalars(select(Customer).where(Customer.customerid == user.userid))
-    customer = customer.first()
-    if not customer:
-        raise HTTPException(status_code=404, detail="Customer not found")
-
-    order = await session.scalars(select(Orders).where(Orders.customerid == customer.customerid, Orders.orderid == order_id))
+    order = await session.scalars(order_query)
     order = order.first()
 
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    book = await session.scalars(select(Book).where(Book.orderid == order.orderid))
-    book = book.first()
+    books = await session.scalars(select(Book).where(Book.orderid == order.orderid))
+    books = books.all()
 
-    picture_path = ""
-    if book and book.orderid is not "null":
-        picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
-        picture = picture.first()
-        picture_path = picture.picturepath if picture else ""
+    book_details = []
+    for book in books:
+        picture_path = ""
+        if book and book.orderid is not None:
+            pictures = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
+            picture = pictures.first()
+            picture_path = picture.picturepath if picture else ""
+
+        book_detail = {
+            "bookid": book.bookid,
+            "bookname": book.name if book else "",
+            "bookpicturepath": picture_path,
+            "price": book.price if book else 0,
+        }
+        book_details.append(book_detail)
 
     order_detail = {
         "orderid": order.orderid,
-        "sellerid": order.sellerid,
-        "bookname": book.name if book else "",
-        "bookpicturepath": picture_path,
-        # "price": book.price if book else 0,
+        **({"sellerid": order.sellerid} if user_type == "customer" and order.sellerid else {}),
+        **({"customerid": order.customerid} if user_type == "seller" and order.customerid else {}),
+        "books": book_details,
         "totalbookcount": order.totalbookcount,
         "totalamount": order.totalamount,
-        "orderststus": order.orderstatus,
+        "orderstatus": order.orderstatus,
         "time": order.time
     }
     return order_detail
 
 
+@app.get("/customer/orders/{order_id}")
+async def get_order_details_customer(token: str,  order_id: int, session: AsyncSession = Depends(get_session)):
+    customer = await get_current_customer(token, session)
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    order_detail = await get_order_details(session, "customer", customer.customerid, order_id)
+    return order_detail
+
+
 @app.get("/seller/orders/{order_id}")
 async def get_order_details_seller(token: str,  order_id: int, session: AsyncSession = Depends(get_session)):
-    user = await get_current_user_data(token, session)
-
-    seller = await session.scalars(select(Seller).where(Seller.sellerid == user.userid))
-    seller = seller.first()
+    seller = await get_current_seller(token, session)
     if not seller:
         raise HTTPException(status_code=404, detail="Seller not found")
 
-    order = await session.scalars(select(Orders).where(Orders.sellerid == seller.sellerid, Orders.orderid == order_id))
-    order = order.first()
+    order_detail = await get_order_details(session, "seller", seller.sellerid, order_id)
+    return order_detail
 
-    if not order:
+
+@app.get("/seller/orders/{order_id}/comment")
+async def view_comment_for_seller(token: str,  order_id: int, session: AsyncSession = Depends(get_session)):
+    seller = await get_current_seller(token, session)
+    if not seller:
+        raise HTTPException(status_code=404, detail="Seller not found")
+
+    comment = await session.scalar(select(Orders.comment).where(Orders.orderid == order_id))
+    stars = await session.scalar(select(Orders.stars).where(Orders.orderid == order_id))
+
+    if comment is None and stars is None:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    book = await session.scalars(select(Book).where(Book.orderid == order.orderid))
-    book = book.first()
-
-    picture_path = ""
-    if book and book.orderid is not "null":
-        picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
-        picture = picture.first()
-        picture_path = picture.picturepath if picture else ""
-
-    order_detail = {
-        "orderid": order.orderid,
-        "customerid": order.customerid,
-        "bookname": book.name if book else "",
-        "bookpicturepath": picture_path,
-        # "price": book.price if book else 0,
-        "totalbookcount": order.totalbookcount,
-        "totalamount": order.totalamount,
-        "orderststus": order.orderstatus,
-        "time": order.time,
-        "comment": order.comment,
-        "stars": order.stars
-    }
-    return order_detail
+    return {"comment": comment, "stars": stars}
