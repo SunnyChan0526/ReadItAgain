@@ -135,7 +135,10 @@ async def checkout(seller_id: int, shipping_options: str, selected_coupons: list
         shipping_fee = 120
     elif shipping_options == '面交':
         shipping_fee = 0
-
+    else:
+        raise HTTPException(status_code=404, detail="unvalid shipping option")
+    
+    discount_price = 0
     for coupon in selected_coupons:
         if coupon.type == 'seasoning':
             if coupon.discountrate >= 1:
@@ -657,7 +660,7 @@ async def checkout_discount(seller_id: int, token: str, session: AsyncSession = 
 async def order_create(seller_id: int, shipping_options: str, selected_coupons: list[DiscountInfo], token: str, session: AsyncSession = Depends(get_session)):
     checkout_data = await checkout(seller_id, shipping_options, selected_coupons, token, session)
     user = await get_current_user_data(token, session)
-    stmt = insert(Orders).values(sellerid=seller_id, customerid=user.userid, orderstatus='未送達',
+    stmt = insert(Orders).values(sellerid=seller_id, customerid=user.userid, orderstatus='To ship',
                                  time=datetime.now(), totalamount=checkout_data.total_amount, totalbookcount=checkout_data.total_book_count
                                  )
     await session.execute(stmt)
@@ -789,7 +792,7 @@ async def view_order_list_customer(
 
     orderlist = []
     for order in orders:
-        if order_status and order.orderstatus != order_status:
+        if  order_status and order_status != 'All' and order.orderstatus != order_status:
             continue
 
         book_details = await get_book_details(session, order.orderid)
@@ -800,6 +803,7 @@ async def view_order_list_customer(
 
         order_list = {
             "orderid": order.orderid,
+            "orderstatus": order.orderstatus,
             "sellerid": order.sellerid,
             "books": book_details,
             "totalbookcount": order.totalbookcount,
@@ -810,7 +814,13 @@ async def view_order_list_customer(
 
 
 @app.get("/seller/orders")
-async def view_order_list_seller(token: str,  session: AsyncSession = Depends(get_session)):
+async def view_order_list_seller(
+    token: str,
+    order_status: Optional[str] = Query(None, description='order status'),
+    keyword_type: Optional[str] = Query(None, description='keyword type'),
+    keyword: Optional[str] = Query(None, description='keyword'),
+    session: AsyncSession = Depends(get_session),
+):
     seller = await get_current_seller(token, session)
     if not seller:
         raise HTTPException(status_code=404, detail="Seller not found")
@@ -820,10 +830,18 @@ async def view_order_list_seller(token: str,  session: AsyncSession = Depends(ge
 
     orderlist = []
     for order in orders:
+        if  order.orderstatus != 'All' and order.orderstatus != order_status:
+            continue
+
         book_details = await get_book_details(session, order.orderid)
+        if keyword_type == 'Book name' and keyword:
+            book_names = [book['bookname'] for book in book_details]
+            if keyword not in book_names:
+                continue
 
         order_list = {
             "orderid": order.orderid,
+            "orderstatus": order.orderstatus,
             "customerid": order.customerid,
             "books": book_details,
             "totalbookcount": order.totalbookcount,
@@ -916,10 +934,19 @@ async def view_comment_for_seller(token: str,  order_id: int, session: AsyncSess
 
 
 @app.post("/update_orders/{order_id}")
-async def update_orders(order_id: int, session: AsyncSession = Depends(get_session)):
+async def update_orders(order_id: int, current_status: str, session: AsyncSession = Depends(get_session)):
+    if current_status == 'To ship':
+        next_status = 'Shipping'
+    elif current_status == 'Shipping':
+        next_status = 'Completed'
+    elif current_status == 'Completed':
+        next_status = 'Completed'
+    else:
+        raise HTTPException(status_code=404, detail=f"current_status: {current_status} can't be update")
+        
     sql_update = f'''
                     update ORDERS
-                    set OrderStatus = '訂單完成'
+                    set OrderStatus = '{next_status}'
                     where OrderID = {order_id}
                     '''
     await session.execute(text(sql_update))
@@ -948,7 +975,7 @@ async def customer_cancel_orders_pr(order_id: int, session: AsyncSession = Depen
     order = order.first()
 
     if order:
-        order.orderstatus = "Cancellation Pending"
+        order.orderstatus = "Cancelling"
         await session.commit()
         return {"message": f"Pending of order {order_id} cancellation successfully"}
     else:
@@ -962,7 +989,7 @@ async def customer_cancel_orders_pr(order_id: int, reason: str, is_accepted: boo
 
     if order:
         if is_accepted:
-            order.orderstatus = "Cancellation Successfully"
+            order.orderstatus = "Cancelled"
             order.cancellationreason = reason
             await session.commit()
             return {"message": f"Order {order_id} cancelled successfully."}
@@ -989,7 +1016,7 @@ async def customer_comment(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    if order.orderstatus == "訂單完成":
+    if order.orderstatus == "Completed":
         stmt = update(Orders).where(Orders.orderid == order.orderid).values(
             comment=comment_input, stars=stars_input)
         await session.execute(stmt)
