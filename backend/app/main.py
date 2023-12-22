@@ -236,7 +236,6 @@ async def search_books_by_order(
         query = query.order_by(Book.price.desc())
 
     if min_price is not None and max_price is not None:
-
         query = query.where(Book.price >= min_price, Book.price <= max_price)
 
     books = await session.scalars(query)
@@ -958,3 +957,33 @@ async def customer_cancel_orders_pr(order_id: int, reason: str, is_accepted: boo
             return {"message": f"Order {order_id} cancellation request denied."}
     else:
         raise HTTPException(status_code=404, detail="Order not found")
+
+@app.post("/{order_id}/comment")
+async def customer_comment(
+        token: str,
+        order_id: int,
+        stars_input: int,
+        comment_input: str,
+        session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(token, session)
+
+    customer = await session.scalars(select(Customer).where(Customer.customerid == user.userid))
+    customer = customer.first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    order = await session.scalars(
+        select(Orders).where(Orders.customerid == customer.customerid, Orders.orderid == order_id))
+    order = order.first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    if order.orderstatus == "訂單完成":
+        stmt = update(Orders).where(Orders.orderid == order.orderid).values(
+            comment=comment_input, stars=stars_input)
+        await session.execute(stmt)
+        await session.commit()
+        return {"OK! Comment has been upload!"}
+    else:
+        return {"The order has not finished!"}
+
