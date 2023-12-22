@@ -789,13 +789,15 @@ async def view_order_list_customer(
 
     orderlist = []
     for order in orders:
-        if (order.orderstatus != order_status):
+        if order_status and order.orderstatus != order_status:
             continue
 
         book_details = await get_book_details(session, order.orderid)
-        if keyword_type == 'Book name':
-            if keyword not in [b.name for b in book_details]:
+        if keyword_type == 'Book name' and keyword:
+            book_names = [book['bookname'] for book in book_details]
+            if keyword not in book_names:
                 continue
+
         order_list = {
             "orderid": order.orderid,
             "sellerid": order.sellerid,
@@ -977,10 +979,7 @@ async def customer_comment(
         stars_input: int,
         comment_input: str,
         session: AsyncSession = Depends(get_session)):
-    user = await get_current_user_data(token, session)
-
-    customer = await session.scalars(select(Customer).where(Customer.customerid == user.userid))
-    customer = customer.first()
+    customer = await get_current_customer(token, session)
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
 
