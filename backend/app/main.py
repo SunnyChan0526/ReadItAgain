@@ -138,7 +138,7 @@ async def checkout(seller_id: int, shipping_options: str, selected_coupons: list
         shipping_fee = 0
     else:
         raise HTTPException(status_code=404, detail="unvalid shipping option")
-    
+
     discount_price = 0
     for coupon in selected_coupons:
         if coupon.type == 'seasoning':
@@ -680,7 +680,8 @@ async def order_create(seller_id: int, shipping_options: str, selected_coupons: 
         await session.execute(text(sql_update))
         await session.commit()
     for coupon in selected_coupons:
-        stmt = insert(Applied_List).values(orderid=orders.orderid, discountcode=coupon.discountcode)
+        stmt = insert(Applied_List).values(
+            orderid=orders.orderid, discountcode=coupon.discountcode)
         await session.execute(stmt)
         await session.commit()
     return orders
@@ -753,12 +754,14 @@ async def get_current_customer(token: str, session: AsyncSession):
         raise HTTPException(status_code=404, detail="Customer not found")
     return customer.first()
 
+
 async def get_current_seller(token: str, session: AsyncSession):
     user = await get_current_user_data(token, session)
     seller = await session.scalars(select(Seller).where(Seller.sellerid == user.userid))
     if not seller:
         raise HTTPException(status_code=404, detail="Seller not found")
     return seller.first()
+
 
 async def get_book_details(session: AsyncSession, order_id: int):
     books = await session.scalars(select(Book).where(Book.orderid == order_id))
@@ -797,7 +800,7 @@ async def view_order_list_customer(
 
     orderlist = []
     for order in orders:
-        if  order_status and order_status != 'All' and order.orderstatus != order_status:
+        if order_status and order_status != 'All' and order.orderstatus != order_status:
             continue
 
         book_details = await get_book_details(session, order.orderid)
@@ -833,7 +836,7 @@ async def view_order_list_seller(
 
     orderlist = []
     for order in orders:
-        if  order.orderstatus != 'All' and order.orderstatus != order_status:
+        if order.orderstatus != 'All' and order.orderstatus != order_status:
             continue
 
         book_details = await get_book_details(session, order.orderid)
@@ -939,7 +942,8 @@ async def update_orders(person: str, order_id: int, token: str, session: AsyncSe
         elif current_status == 'Completed':
             next_status = 'Completed'
         else:
-            raise HTTPException(status_code=400, detail="Invalid order status to proceed.")
+            raise HTTPException(
+                status_code=400, detail="Invalid order status to proceed.")
     elif person == 'customer':
         customer = await get_current_customer(token, session)
         current_status = await session.scalars(select(Orders.orderstatus).where(Orders.orderid == order_id, Orders.customerid == customer.customerid))
@@ -948,10 +952,12 @@ async def update_orders(person: str, order_id: int, token: str, session: AsyncSe
         elif current_status == 'Completed':
             next_status = 'Completed'
         else:
-            raise HTTPException(status_code=400, detail="Invalid order status to proceed. Customer only can update to 'Completed' status")
+            raise HTTPException(
+                status_code=400, detail="Invalid order status to proceed. Customer only can update to 'Completed' status")
     else:
-        raise HTTPException(status_code=400, detail="Invalid person role provided")
-    
+        raise HTTPException(
+            status_code=400, detail="Invalid person role provided")
+
     sql_update = f'''
                     update ORDERS
                     set OrderStatus = '{next_status}'
@@ -976,6 +982,7 @@ async def update_orders(person: str, order_id: int, token: str, session: AsyncSe
     }
     return order_detail
 
+
 async def get_order(person: str, order_id: int, token: str, session: AsyncSession = Depends(get_session)):
     if person == 'customer':
         customer = await get_current_customer(token, session)
@@ -984,9 +991,11 @@ async def get_order(person: str, order_id: int, token: str, session: AsyncSessio
         seller = await get_current_seller(token, session)
         order = await session.scalars(select(Orders).where(Orders.orderid == order_id, Orders.sellerid == seller.sellerid))
     else:
-        raise HTTPException(status_code=400, detail="Invalid person role provided")
+        raise HTTPException(
+            status_code=400, detail="Invalid person role provided")
     order = order.first()
     return order
+
 
 @app.post("/cancel_orders_pr/{person}/{order_id}")
 async def cancel_orders_pr(person: str, order_id: int, token: str, session: AsyncSession = Depends(get_session)):
@@ -998,8 +1007,9 @@ async def cancel_orders_pr(person: str, order_id: int, token: str, session: Asyn
     else:
         raise HTTPException(status_code=404, detail="Order not found")
 
+
 @app.post("/cancel_orders/{person}/{order_id}")
-async def cancel_orders(person: str, order_id: int, reason: str, is_accepted: bool, token:str, session: AsyncSession = Depends(get_session)):
+async def cancel_orders(person: str, order_id: int, reason: str, is_accepted: bool, token: str, session: AsyncSession = Depends(get_session)):
     order = await get_order(person, order_id, token, session)
     if order:
         if is_accepted:
@@ -1011,6 +1021,7 @@ async def cancel_orders(person: str, order_id: int, reason: str, is_accepted: bo
             return {"message": f"Order {order_id} cancellation request denied."}
     else:
         raise HTTPException(status_code=404, detail="Order not found")
+
 
 @app.post("/comment/{order_id}")
 async def customer_comment(
@@ -1039,19 +1050,20 @@ async def customer_comment(
 # seller-coupon
 def coupon_to_dict(coupon, coupons_dict):
     info = {
-                'discountcode': coupon.discountcode,
-                'name': coupon.name,
-                'type': coupon.type,
-                'description': coupon.description,
-                'startdate': coupon.startdate,
-                'enddate': coupon.enddate,
-                'discountrate': coupon.discountrate,
-                'eventtag': coupon.eventtag,
-                'minimumamountfordiscount': coupon.minimumamountfordiscount
-            }
+        'discountcode': coupon.discountcode,
+        'name': coupon.name,
+        'type': coupon.type,
+        'description': coupon.description,
+        'startdate': coupon.startdate,
+        'enddate': coupon.enddate,
+        'discountrate': coupon.discountrate,
+        'eventtag': coupon.eventtag,
+        'minimumamountfordiscount': coupon.minimumamountfordiscount
+    }
     if coupon.type not in coupons_dict:
         coupons_dict[coupon.type] = []
     coupons_dict[coupon.type].append(info)
+
 
 @app.get("/seller_page/coupon/view/{type}")
 async def view_coupon(type: str, token: str, session: AsyncSession = Depends(get_session)):
@@ -1075,19 +1087,23 @@ async def view_coupon(type: str, token: str, session: AsyncSession = Depends(get
             if coupon.enddate < datetime.now():
                 coupon_to_dict(coupon, coupons_dict)
     else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid coupon type. Supported types are 'all', 'ongoing', 'upcoming', 'expired'")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Invalid coupon type. Supported types are 'all', 'ongoing', 'upcoming', 'expired'")
     return coupons_dict
+
 
 @app.post("/seller_page/coupon/create", response_model=Discount)
 async def create_coupon(coupon: CouponCreate, token: str, session: AsyncSession = Depends(get_session)):
     seller = await get_current_seller(token, session)
     valid_types = ['shipping fee', 'seasoning', 'special event']
     if coupon.type not in valid_types:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid coupon type. Supported types are {valid_types}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Invalid coupon type. Supported types are {valid_types}")
     new_coupon = Discount(sellerid=seller.sellerid, **coupon.dict())
     session.add(new_coupon)
     await session.commit()
     return new_coupon
+
 
 @app.patch("/seller_page/coupon/edit/{discount_code}")
 async def edit_coupon(token: str, coupon: CouponEdit, discount_code: int, session: AsyncSession = Depends(get_session)):
@@ -1096,11 +1112,12 @@ async def edit_coupon(token: str, coupon: CouponEdit, discount_code: int, sessio
     discount = await session.scalars(select(Discount).where(Discount.discountcode == discount_code, Discount.sellerid == seller.sellerid))
     discount = discount.first()
     if not discount:
-        raise HTTPException(status_code=404, detail=f"Can't find Coupon {discount_code} in your coupons")
+        raise HTTPException(
+            status_code=404, detail=f"Can't find Coupon {discount_code} in your coupons")
 
     appied_record = await session.scalars(select(Applied_List).where(Applied_List.discountcode == discount_code))
-    
-    if not appied_record.first(): #該discount還沒人用過
+
+    if not appied_record.first():  # 該discount還沒人用過
         # 創建要更新的字段和值的字典
         update_data = {}
         update_data['discountcode'] = discount_code
@@ -1115,8 +1132,9 @@ async def edit_coupon(token: str, coupon: CouponEdit, discount_code: int, sessio
             update_data['startdate'] = coupon.startdate
             update_data['enddate'] = coupon.enddate
         elif (coupon.startdate is not None) or (coupon.enddate is not None):
-            raise HTTPException(status_code=400, detail="Must fill in both startdate and enddate!")
-        
+            raise HTTPException(
+                status_code=400, detail="Must fill in both startdate and enddate!")
+
         if coupon.isactivated is not None:
             update_data['isactivated'] = coupon.isactivated
         if coupon.discountrate is not None:
@@ -1125,7 +1143,7 @@ async def edit_coupon(token: str, coupon: CouponEdit, discount_code: int, sessio
             update_data['eventtag'] = coupon.eventtag
         if coupon.minimumamountfordiscount is not None:
             update_data['minimumamountfordiscount'] = coupon.minimumamountfordiscount
-        
+
         # 確認是否有更新資料
         if update_data:
             stmt = (
@@ -1143,18 +1161,20 @@ async def edit_coupon(token: str, coupon: CouponEdit, discount_code: int, sessio
                 await session.rollback()
                 raise HTTPException(status_code=400, detail=f"Error: {str(e)}")
         else:
-            raise HTTPException(status_code=400, detail=f"No data provided for update on Coupon {discount_code}")
+            raise HTTPException(
+                status_code=400, detail=f"No data provided for update on Coupon {discount_code}")
     else:
-        raise HTTPException(status_code=400, detail=f"Coupon {discount_code} had been appied already")
+        raise HTTPException(
+            status_code=400, detail=f"Coupon {discount_code} had been appied already")
 
-    
+
 @app.delete("/seller_page/coupon/delete/{discount_code}")
 async def delete_coupon(token: str, discount_code: int, session: AsyncSession = Depends(get_session)):
     seller = await get_current_seller(token, session)
-    
+
     appied_record = await session.scalars(select(Applied_List).where(Applied_List.discountcode == discount_code))
-    
-    if not appied_record.first(): #該discount還沒人用過
+
+    if not appied_record.first():  # 該discount還沒人用過
         discount = await session.scalars(select(Discount).where(Discount.discountcode == discount_code, Discount.sellerid == seller.sellerid))
         discount = discount.first()
 
@@ -1169,7 +1189,7 @@ async def delete_coupon(token: str, discount_code: int, session: AsyncSession = 
             # 您可以根據具體的情況回滾事務或返回相應的錯誤消息
             await session.rollback()
             return f"Error: {str(e)}"
-        
+
         discount = await session.scalars(select(Discount).where(Discount.discountcode == discount_code, Discount.sellerid == seller.sellerid))
         discount = discount.first()
         if discount:
@@ -1178,18 +1198,19 @@ async def delete_coupon(token: str, discount_code: int, session: AsyncSession = 
             return f"Successfully removed coupon {discount_code}"
     else:
         return f"Coupon {discount_code} had been appied already"
-    
+
+
 @app.post("/seller_page/coupon/activate/{discount_code}")
 async def activate_coupon(token: str, discount_code: int, activate: bool, session: AsyncSession = Depends(get_session)):
     seller = await get_current_seller(token, session)
-    
+
     discount = await session.scalars(select(Discount).where(Discount.discountcode == discount_code, Discount.sellerid == seller.sellerid))
     discount = discount.first()
 
     if not discount:
         raise HTTPException(
             status_code=404, detail=f"Coupon {discount_code} not found in your coupons!")
-    
+
     stmt = (
         update(Discount)
         .where(Discount.discountcode == discount_code)
@@ -1204,3 +1225,36 @@ async def activate_coupon(token: str, discount_code: int, activate: bool, sessio
         # 您可以根據具體的情況回滾事務或返回相應的錯誤消息
         await session.rollback()
         raise HTTPException(status_code=400, detail=f"Error: {str(e)}")
+
+
+@app.get("/seller_page/books")
+async def view_books_list_for_seller(token: str, book_id: Optional[int] = None, session: AsyncSession = Depends(get_session)):
+    seller = await get_current_seller(token, session)
+
+    if book_id is not None:
+        books = await session.scalars(select(Book).where(Book.sellerid == seller.sellerid, Book.bookid == book_id))
+    else:
+        books = await session.scalars(select(Book).where(Book.sellerid == seller.sellerid))
+        books = books.all()
+    if not books:
+        return {"message": "No books found for this seller."}
+
+    formatted_books = []
+    for book in books:
+        order = await session.scalars(select(Orders).where(Orders.orderid == book.orderid))
+        order = order.first()
+
+        picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
+        picture = picture.first()
+        picture_path = picture.picturepath if picture else ""
+
+        book_details = {
+            "book_id": book.bookid,
+            "book_name": book.name,
+            "picture_path": picture_path,
+            "description": book.description,
+            "price": book.price,
+            "status": order.orderstatus if order else "Not sold",
+        }
+        formatted_books.append(book_details)
+    return formatted_books
