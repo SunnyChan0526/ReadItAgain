@@ -679,6 +679,14 @@ async def order_create(seller_id: int, shipping_options: str, selected_coupons: 
                       '''
         await session.execute(text(sql_update))
         await session.commit()
+    for book in book_rows:
+        sql_update = f'''
+                        update BOOK
+                        set State = 'ordered'
+                        where BookID = {book.bookid}
+                      '''
+        await session.execute(text(sql_update))
+        await session.commit()
     for coupon in selected_coupons:
         stmt = insert(Applied_List).values(
             orderid=orders.orderid, discountcode=coupon.discountcode)
@@ -956,6 +964,15 @@ async def update_orders(person: str, order_id: int, token: str, session: AsyncSe
     else:
         raise HTTPException(
             status_code=400, detail="Invalid person role provided")
+    if next_status == 'Completed':
+        book_state = 'sold'
+        sql_update = f'''
+                    update BOOK
+                    set state = '{book_state}'
+                    where OrderID = {order_id}
+                    '''
+        await session.execute(text(sql_update))
+        await session.commit()
 
     sql_update = f'''
                     update ORDERS
@@ -1261,10 +1278,146 @@ async def view_books_list_for_seller(token: str, book_id: Optional[int] = None, 
             "picture_path": picture_path,
             "description": book.description,
             "price": book.price,
-            "status": status,
+            "state": status,
         }
         if status in status_books:
             status_books[status].append(book_details)
         else:
             status_books["Other"].append(book_details)
     return status_books
+
+async def get_book(book_id: int, session: AsyncSession = Depends(get_session)):
+    book = await session.scalars(select(Book).where(Book.bookid == book_id))
+    book = book.first()
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    return book
+@app.post("/seller_page/books/create")
+async def create_book(token: str,
+                      isbn: str,
+                      ShippingLocation: str,
+                      Name: str,
+                      Condition: str,
+                      Price: int,
+                      Description: str,
+                      Category: str,
+                      book_picture: str,
+                      session: AsyncSession = Depends(get_session)):
+    seller = await get_current_seller(token, session)
+    book_state = 'no picture'
+    sql_update = f'''
+                    insert into BOOK (SellerID, ISBN, ShippingLocation , Name, Condition, Price, Description, Category, State)
+                    values ({seller.sellerid}, '{isbn}', '{ShippingLocation}', '{Name}', '{Condition}', {Price}, '{Description}', '{Category}', '{book_state}')
+                    '''
+    await session.execute(text(sql_update))
+    await session.commit()
+    book = await session.scalars(select(Book).where(Book.state == 'no picture'))
+    book = book.first()
+    newbook_id = book.bookid
+    book_state = 'on sold'
+    sql_update = f'''
+                    insert into PICTURE_LIST (BookID, PicturePath)
+                    values ({book.bookid}, '{book_picture}')
+                    '''
+    await session.execute(text(sql_update))
+    await session.commit()
+    sql_update = update(Book).where(book.bookid == Book.bookid).values(state = book_state)
+    await session.execute(sql_update)
+    await session.commit()
+
+    book = await get_book(newbook_id, session)
+    picture = await session.scalars(
+        select(Picture_List).where(Picture_List.bookid == newbook_id).order_by(Picture_List.pictureid))
+    picture = picture.first()
+    picture_path = picture.picturepath if picture else ""
+
+    book_details = {
+        "book_id": book.bookid,
+        "book_name": book.name,
+        "picture_path": picture_path,
+        "description": book.description,
+        "price": book.price,
+        "state": book.state,
+    }
+    return book_details
+
+@app.patch("/seller/books/{book_id}/edit")
+async def edit_book(token: str,
+                    book_id: int,
+                    session: AsyncSession = Depends(get_session),
+                    isbn: str = Query(None),
+                    ShippingLocation: str = Query(None),
+                    Name: str = Query(None),
+                    Condition: str = Query(None),
+                    Price: int = Query(None),
+                    Description: str = Query(None),
+                    Category: str = Query(None),
+                    state: str = Query(None),
+                    book_picture: str = Query(None)):
+    seller = await get_current_seller(token, session)
+    book = await get_book(book_id, session)
+    if book.state != 'ordered':
+        if isbn:
+            stmt = update(Book).where(Book.bookid ==
+                                        book_id).values(isbn=isbn)
+            await session.execute(stmt)
+        if ShippingLocation:
+            stmt = update(Book).where(Book.bookid ==
+                                      book_id).values(shippinglocation=ShippingLocation)
+            await session.execute(stmt)
+        if Name:
+            stmt = update(Book).where(Book.bookid ==
+                                      book_id).values(name=Name)
+            await session.execute(stmt)
+        if Condition:
+            stmt = update(Book).where(Book.bookid ==
+                                      book_id).values(condition=Condition)
+            await session.execute(stmt)
+        if Price:
+            stmt = update(Book).where(Book.bookid ==
+                                      book_id).values(price=Price)
+            await session.execute(stmt)
+        if Description:
+            stmt = update(Book).where(Book.bookid ==
+                                      book_id).values(description=Description)
+            await session.execute(stmt)
+        if Category:
+            stmt = update(Book).where(Book.bookid ==
+                                      book_id).values(category=Category)
+            await session.execute(stmt)
+        if state:
+            valid_types = ['on sale', 'removed']
+            if state not in valid_types:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                    detail=f"Invalid state type. Supported types are {valid_types}")
+            stmt = update(Book).where(Book.bookid ==
+                                      book_id).values(state=state)
+            await session.execute(stmt)
+        if book_picture:
+            stmt = update(Picture_List).where(Picture_List.bookid ==
+                                      book_id).values(picturepath=book_picture)
+            await session.execute(stmt)
+        await session.commit()
+    else:
+        return {"message": "Book has been ordered"}
+    return {"message": "Edited succeed"}
+
+@app.delete("/seller/books/{book_id}/remove")
+async def delete_book(book_id: int,
+                      session: AsyncSession = Depends(get_session)):
+    while True:
+        pic_exist = await session.scalars(
+            select(Picture_List).where(Picture_List.bookid == book_id))
+        pic_exist = pic_exist.first()
+        if not pic_exist:
+            break
+        else:
+            await session.delete(pic_exist)
+            await session.commit()
+
+    book = await get_book(book_id, session)
+
+    await session.delete(book)
+    await session.commit()
+
+    return {"message": "Removed succeed"}
