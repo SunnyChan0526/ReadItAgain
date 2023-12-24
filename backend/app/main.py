@@ -9,7 +9,7 @@ from typing import Optional, List, Dict
 from sqlmodel import select
 from sqlalchemy import update, insert, desc, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List, Discount, Orders
+from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List, Discount, Orders, Applied_List
 from app.models import BookInfo, BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit, DiscountInfo, CheckoutList, ShippingMethod, CouponCreate
 from .config import settings
 from datetime import datetime
@@ -678,6 +678,10 @@ async def order_create(seller_id: int, shipping_options: str, selected_coupons: 
                       '''
         await session.execute(text(sql_update))
         await session.commit()
+    for coupon in selected_coupons:
+        stmt = insert(Applied_List).values(orderid=orders.orderid, discountcode=coupon.discountcode)
+        await session.execute(stmt)
+        await session.commit()
     return orders
 
 # seller-page (for customer)
@@ -1024,6 +1028,7 @@ async def customer_comment(
         return {"OK! Comment has been upload!"}
     else:
         return {"The order has not finished!"}
+    
 def coupon_to_dict(coupon, coupons_dict):
     info = {
                 'discountcode': coupon.discountcode,
