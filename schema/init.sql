@@ -113,6 +113,7 @@ CREATE TABLE DISCOUNT (
     Description VARCHAR(500) NOT NULL,
     StartDate TIMESTAMP NOT NULL,
     EndDate TIMESTAMP NOT NULL,
+    IsActivated BOOLEAN,
     DiscountRate FLOAT,
     EventTag VARCHAR(50),
     MinimumAmountForDiscount INTEGER
@@ -123,13 +124,13 @@ CREATE TABLE DISCOUNT (
 
 
 -- Insert fake data into DISCOUNT table
-INSERT INTO DISCOUNT (SellerID, Name, Type, Description, StartDate, EndDate, DiscountRate, EventTag, MinimumAmountForDiscount)
+INSERT INTO DISCOUNT (SellerID, Name, Type, Description, StartDate, EndDate, IsActivated, DiscountRate, EventTag, MinimumAmountForDiscount)
 VALUES 
-(2, '暑期促銷', 'seasoning', '所有書籍9折', '2023-07-01 00:00:00', '2023-10-01 23:59:59', 0.9, null, 200),
-(2, '免運券', 'shipping fee', '滿200免運費', '2024-01-01 00:00:00', '2024-02-01 23:59:59', null, null, 200),
-(2, '好禮額外送', 'special event', '現在買小王子就額外送親子繪本', '2023-07-01 00:00:00', '2024-02-01 23:59:59', null, '額外好禮', null),
-(3, '50折價券', 'seasoning', '只要滿200額外折價50元', '2023-07-01 00:00:00', '2024-02-01 23:59:59', 50.0, null, 200),
-(3, '買一送一', 'special event', '現在哈利波特買一送一', '2023-07-01 00:00:00', '2024-02-01 23:59:59', null, '買一送一', null);
+(2, '暑期促銷', 'seasoning', '所有書籍9折', '2023-07-01 00:00:00', '2023-10-01 23:59:59', true, 0.9, null, 200),
+(2, '免運券', 'shipping fee', '滿200免運費', '2024-01-01 00:00:00', '2024-02-01 23:59:59', true, null, null, 200),
+(2, '好禮額外送', 'special event', '現在買小王子就額外送親子繪本', '2023-07-01 00:00:00', '2024-02-01 23:59:59', true, null, '額外好禮', null),
+(3, '50折價券', 'seasoning', '只要滿200額外折價50元', '2023-07-01 00:00:00', '2024-02-01 23:59:59', true, 50.0, null, 200),
+(3, '買一送一', 'special event', '現在哈利波特買一送一', '2023-07-01 00:00:00', '2024-02-01 23:59:59', true, null, '買一送一', null);
 
 
 

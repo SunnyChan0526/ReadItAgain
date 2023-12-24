@@ -113,6 +113,19 @@ class CouponCreate(BaseModel):
     description: str 
     startdate: datetime
     enddate: datetime
+    isactivated: bool = Query(False)
     discountrate: Optional[float]
     eventtag: Optional[str]
     minimumamountfordiscount: Optional[int]
+
+class CouponEdit(BaseModel):
+    name: str = Query(None)
+    type: str = Query(None)
+    description: str  = Query(None)
+    startdate: datetime = Query(None)
+    enddate: datetime = Query(None)
+    isactivated: bool = Query(False)
+    discountrate: Optional[float] = Query(None)
+    eventtag: Optional[str] = Query(None)
+    minimumamountfordiscount: Optional[int] = Query(None)
+
