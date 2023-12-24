@@ -77,6 +77,7 @@ class Discount(SQLModel, table=True):
     description: str = Field(max_length=500)
     startdate: datetime
     enddate: datetime
+    isactivated: bool
     discountrate: Optional[float]
     eventtag: Optional[str] = Field(max_length=50)
     minimumamountfordiscount: Optional[int]

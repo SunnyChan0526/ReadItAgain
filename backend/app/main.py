@@ -10,7 +10,7 @@ from sqlmodel import select
 from sqlalchemy import update, insert, desc, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
-from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List, Discount, Orders
+from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List, Discount, Orders, Applied_List
 from app.models import BookInfo, BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit, DiscountInfo, CheckoutList, ShippingMethod, CouponCreate, CouponEdit
 from .config import settings
 from datetime import datetime
@@ -597,7 +597,7 @@ async def select_coupon(
     # 將符合的優惠券append到rst
     current_time = datetime.now()
     for coupon in coupon_query:
-        if not coupon.startdate < current_time < coupon.enddate:  # 過期了
+        if (not coupon.startdate < current_time < coupon.enddate) or not coupon.isactivated:  # 過期了
             continue
         info = DiscountInfo(
             discountcode=coupon.discountcode,
@@ -1078,52 +1078,102 @@ async def create_coupon(coupon: CouponCreate, seller_id: int, session: AsyncSess
     await session.commit()
     return new_coupon
 
-@app.patch("/seller/coupon/edit/{discount_code}")
+@app.patch("/coupon/edit/{discount_code}")
 async def edit_coupon(token: str, coupon: CouponEdit, discount_code: int, session: AsyncSession = Depends(get_session)):
     seller = await get_current_seller(token, session)
     if not seller:
         raise HTTPException(status_code=404, detail="Seller not found")
-    # 創建要更新的字段和值的字典
-    update_data = {}
-    if coupon.name is not None:
-        update_data['name'] = coupon.name
-    if coupon.type is not None:
-        update_data['type'] = coupon.type
-    if coupon.description is not None:
-        update_data['description'] = coupon.description
-    if (coupon.startdate is not None) and (coupon.enddate is not None):
-        update_data['startdate'] = coupon.startdate
-        update_data['enddate'] = coupon.enddate
-    # elif (coupon.startdate is not None) or (coupon.enddate is not None):
-    #     return "Must fill in both startdate and enddate!"
-    if coupon.discountrate is not None:
-        update_data['discountrate'] = coupon.discountrate
-    if coupon.eventtag is not None:
-        update_data['eventtag'] = coupon.eventtag
-    if coupon.minimumamountfordiscount is not None:
-        update_data['minimumamountfordiscount'] = coupon.minimumamountfordiscount
     
-    # 確認是否有更新資料
-    if update_data:
-        stmt = (
-            update(Discount)
-            .where(Discount.discountcode == discount_code)
-            .values(**update_data)
-        )
+    discount = await session.scalars(select(Discount).where(Discount.discountcode == discount_code, Discount.sellerid == seller.sellerid))
+    discount = discount.first()
+    if not discount:
+        raise HTTPException(status_code=404, detail=f"Can't find Coupon {discount_code} in your coupons")
+
+    appied_record = await session.scalars(select(Applied_List).where(Applied_List.discountcode == discount_code))
+    
+    if not appied_record.first(): #該discount還沒人用過
+        # 創建要更新的字段和值的字典
+        update_data = {}
+        update_data['discountcode'] = discount_code
+        update_data['sellerid'] = seller.sellerid
+        if coupon.name is not None:
+            update_data['name'] = coupon.name
+        if coupon.type is not None:
+            update_data['type'] = coupon.type
+        if coupon.description is not None:
+            update_data['description'] = coupon.description
+        if (coupon.startdate is not None) and (coupon.enddate is not None):
+            update_data['startdate'] = coupon.startdate
+            update_data['enddate'] = coupon.enddate
+        elif (coupon.startdate is not None) or (coupon.enddate is not None):
+            raise HTTPException(status_code=400, detail="Must fill in both startdate and enddate!")
+        
+        if coupon.isactivated is not None:
+            update_data['isactivated'] = coupon.isactivated
+        if coupon.discountrate is not None:
+            update_data['discountrate'] = coupon.discountrate
+        if coupon.eventtag is not None:
+            update_data['eventtag'] = coupon.eventtag
+        if coupon.minimumamountfordiscount is not None:
+            update_data['minimumamountfordiscount'] = coupon.minimumamountfordiscount
+        
+        # 確認是否有更新資料
+        if update_data:
+            stmt = (
+                update(Discount)
+                .where(Discount.discountcode == discount_code)
+                .values(**update_data)
+            )
+            try:
+                await session.execute(stmt)
+                await session.commit()
+                return f"Coupon {discount_code} updated successfully"
+            except IntegrityError as e:
+                # 在這裡處理違反約束的情況
+                # 您可以根據具體的情況回滾事務或返回相應的錯誤消息
+                await session.rollback()
+                raise HTTPException(status_code=400, detail=f"Error: {str(e)}")
+        else:
+            raise HTTPException(status_code=400, detail=f"No data provided for update on Coupon {discount_code}")
+    else:
+        raise HTTPException(status_code=400, detail=f"Coupon {discount_code} had been appied already")
+
+    
+@app.delete("/coupon/delete/{discount_code}")
+async def delete_coupon(token: str, discount_code: int, session: AsyncSession = Depends(get_session)):
+    seller = await get_current_seller(token, session)
+    if not seller:
+        raise HTTPException(status_code=404, detail="Seller not found")
+    
+    appied_record = await session.scalars(select(Applied_List).where(Applied_List.discountcode == discount_code))
+    
+    if not appied_record.first(): #該discount還沒人用過
+        discount = await session.scalars(select(Discount).where(Discount.discountcode == discount_code, Discount.sellerid == seller.sellerid))
+        discount = discount.first()
+
+        if not discount:
+            raise HTTPException(
+                status_code=404, detail=f"Coupon {discount_code} not found in your coupons!")
         try:
-            await session.execute(stmt)
+            await session.delete(discount)
             await session.commit()
-            return f"Coupon {discount_code} updated successfully"
         except IntegrityError as e:
             # 在這裡處理違反約束的情況
             # 您可以根據具體的情況回滾事務或返回相應的錯誤消息
             await session.rollback()
             return f"Error: {str(e)}"
+        
+        discount = await session.scalars(select(Discount).where(Discount.discountcode == discount_code, Discount.sellerid == seller.sellerid))
+        discount = discount.first()
+        if discount:
+            return f"Failed to remove coupon {discount_code}"
+        else:
+            return f"Successfully removed coupon {discount_code}"
     else:
-        return f"No data provided for update on Coupon {discount_code}"
+        return f"Coupon {discount_code} had been appied already"
     
-@app.delete("/seller/coupon/delete/{discount_code}")
-async def remove_from_address(token: str, discount_code: int, session: AsyncSession = Depends(get_session)):
+@app.post("/coupon/activate/{discount_code}")
+async def activate_coupon(token: str, discount_code: int, activate: bool, session: AsyncSession = Depends(get_session)):
     seller = await get_current_seller(token, session)
     if not seller:
         raise HTTPException(status_code=404, detail="Seller not found")
@@ -1133,14 +1183,19 @@ async def remove_from_address(token: str, discount_code: int, session: AsyncSess
 
     if not discount:
         raise HTTPException(
-            status_code=404, detail=f"discount {discount_code} not found")
-
-    await session.delete(discount)
-    await session.commit()
-
-    discount = await session.scalars(select(Discount).where(Discount.discountcode == discount_code, Discount.sellerid == seller.sellerid))
-    discount = discount.first()
-    if discount:
-        return {"message": f"Failed to remove address {discount_code}"}
-    else:
-        return {"message": f"Successfully removed address {discount_code}"}
+            status_code=404, detail=f"Coupon {discount_code} not found in your coupons!")
+    
+    stmt = (
+        update(Discount)
+        .where(Discount.discountcode == discount_code)
+        .values(isactivated=activate)
+    )
+    try:
+        await session.execute(stmt)
+        await session.commit()
+        return f"Coupon {discount_code} is activate={activate} now!"
+    except IntegrityError as e:
+        # 在這裡處理違反約束的情況
+        # 您可以根據具體的情況回滾事務或返回相應的錯誤消息
+        await session.rollback()
+        raise HTTPException(status_code=400, detail=f"Error: {str(e)}")
