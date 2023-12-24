@@ -1029,7 +1029,7 @@ async def customer_comment(
 
 @app.patch("/seller/coupon/edit/{discount_code}")
 async def edit_coupon(token: str, coupon: CouponEdit, discount_code: int, session: AsyncSession = Depends(get_session)):
-    seller = await get_current_user_data(token, session)
+    seller = await get_current_seller(token, session)
     if not seller:
         raise HTTPException(status_code=404, detail="Seller not found")
     # 創建要更新的字段和值的字典
@@ -1070,3 +1070,26 @@ async def edit_coupon(token: str, coupon: CouponEdit, discount_code: int, sessio
             return f"Error: {str(e)}"
     else:
         return f"No data provided for update on Coupon {discount_code}"
+    
+@app.delete("/seller/coupon/delete/{discount_code}")
+async def remove_from_address(token: str, discount_code: int, session: AsyncSession = Depends(get_session)):
+    seller = await get_current_seller(token, session)
+    if not seller:
+        raise HTTPException(status_code=404, detail="Seller not found")
+    
+    discount = await session.scalars(select(Discount).where(Discount.discountcode == discount_code, Discount.sellerid == seller.sellerid))
+    discount = discount.first()
+
+    if not discount:
+        raise HTTPException(
+            status_code=404, detail=f"discount {discount_code} not found")
+
+    await session.delete(discount)
+    await session.commit()
+
+    discount = await session.scalars(select(Discount).where(Discount.discountcode == discount_code, Discount.sellerid == seller.sellerid))
+    discount = discount.first()
+    if discount:
+        return {"message": f"Failed to remove address {discount_code}"}
+    else:
+        return {"message": f"Successfully removed address {discount_code}"}
