@@ -105,3 +105,14 @@ class ShippingMethod(BaseModel):
     # shippingmethod: str
     address: str
     defaultaddress: bool
+
+# Coupon
+class CouponCreate(BaseModel):
+    name: str 
+    type: str 
+    description: str 
+    startdate: datetime
+    enddate: datetime
+    discountrate: Optional[float]
+    eventtag: Optional[str]
+    minimumamountfordiscount: Optional[int]

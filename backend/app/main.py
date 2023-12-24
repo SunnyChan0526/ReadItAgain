@@ -10,7 +10,7 @@ from sqlmodel import select
 from sqlalchemy import update, insert, desc, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List, Discount, Orders
-from app.models import BookInfo, BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit, DiscountInfo, CheckoutList, ShippingMethod
+from app.models import BookInfo, BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit, DiscountInfo, CheckoutList, ShippingMethod, CouponCreate
 from .config import settings
 from datetime import datetime
 import shutil
@@ -970,7 +970,7 @@ async def update_orders(order_id: int, current_status: str, session: AsyncSessio
 
 
 @app.post("/cancel_orders_pr/{order_id}")
-async def customer_cancel_orders_pr(order_id: int, session: AsyncSession = Depends(get_session)):
+async def cancel_orders_pr(order_id: int, session: AsyncSession = Depends(get_session)):
     order = await session.scalars(select(Orders).where(Orders.orderid == order_id))
     order = order.first()
 
@@ -983,7 +983,7 @@ async def customer_cancel_orders_pr(order_id: int, session: AsyncSession = Depen
 
 
 @app.post("/cancel_orders/{order_id}")
-async def customer_cancel_orders_pr(order_id: int, reason: str, is_accepted: bool, session: AsyncSession = Depends(get_session)):
+async def cancel_orders_pr(order_id: int, reason: str, is_accepted: bool, session: AsyncSession = Depends(get_session)):
     order = await session.scalars(select(Orders).where(Orders.orderid == order_id))
     order = order.first()
 
@@ -1024,3 +1024,52 @@ async def customer_comment(
         return {"OK! Comment has been upload!"}
     else:
         return {"The order has not finished!"}
+def coupon_to_dict(coupon, coupons_dict):
+    info = {
+                'discountcode': coupon.discountcode,
+                'name': coupon.name,
+                'type': coupon.type,
+                'description': coupon.description,
+                'startdate': coupon.startdate,
+                'enddate': coupon.enddate,
+                'discountrate': coupon.discountrate,
+                'eventtag': coupon.eventtag,
+                'minimumamountfordiscount': coupon.minimumamountfordiscount
+            }
+    if coupon.type not in coupons_dict:
+        coupons_dict[coupon.type] = []
+    coupons_dict[coupon.type].append(info)
+
+@app.get("/coupon/view/{seller_id}/{type}")
+async def view_coupon(seller_id: int, type: str, session: AsyncSession = Depends(get_session)):
+    coupons = await session.scalars(select(Discount).where(Discount.sellerid == seller_id))
+    coupons = coupons.all()
+    coupons_dict = {}
+    if type == 'all':
+        for coupon in coupons:
+            coupon_to_dict(coupon, coupons_dict)
+    elif type == 'ongoing':
+        for coupon in coupons:
+            if coupon.startdate <= datetime.now() <= coupon.enddate:
+                coupon_to_dict(coupon, coupons_dict)
+    elif type == 'upcoming':
+        for coupon in coupons:
+            if coupon.startdate > datetime.now():
+                coupon_to_dict(coupon, coupons_dict)
+    elif type == 'expired':
+        for coupon in coupons:
+            if coupon.enddate < datetime.now():
+                coupon_to_dict(coupon, coupons_dict)
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid coupon type. Supported types are 'all', 'ongoing', 'upcoming', 'expired'")
+    return coupons_dict
+
+@app.post("/coupon/create/{seller_id}", response_model=Discount)
+async def create_coupon(coupon: CouponCreate, seller_id: int, session: AsyncSession = Depends(get_session)):
+    valid_types = ['shipping fee', 'seasoning', 'special event']
+    if coupon.type not in valid_types:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid coupon type. Supported types are {valid_types}")
+    new_coupon = Discount(sellerid=seller_id, **coupon.dict())
+    session.add(new_coupon)
+    await session.commit()
+    return new_coupon
