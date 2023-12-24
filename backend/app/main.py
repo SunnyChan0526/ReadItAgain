@@ -9,8 +9,9 @@ from typing import Optional, List, Dict
 from sqlmodel import select
 from sqlalchemy import update, insert, desc, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List, Discount, Orders
-from app.models import BookInfo, BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit, DiscountInfo, CheckoutList, ShippingMethod
+from app.models import BookInfo, BookSearch, BookDetail, ShoppingCartList, Token, Profile, Address, AddressCreate, AddressEdit, DiscountInfo, CheckoutList, ShippingMethod, CouponCreate, CouponEdit
 from .config import settings
 from datetime import datetime
 import shutil
@@ -1024,3 +1025,48 @@ async def customer_comment(
         return {"OK! Comment has been upload!"}
     else:
         return {"The order has not finished!"}
+
+
+@app.patch("/seller/coupon/edit/{discount_code}")
+async def edit_coupon(token: str, coupon: CouponEdit, discount_code: int, session: AsyncSession = Depends(get_session)):
+    seller = await get_current_user_data(token, session)
+    if not seller:
+        raise HTTPException(status_code=404, detail="Seller not found")
+    # 創建要更新的字段和值的字典
+    update_data = {}
+    if coupon.name is not None:
+        update_data['name'] = coupon.name
+    if coupon.type is not None:
+        update_data['type'] = coupon.type
+    if coupon.description is not None:
+        update_data['description'] = coupon.description
+    if (coupon.startdate is not None) and (coupon.enddate is not None):
+        update_data['startdate'] = coupon.startdate
+        update_data['enddate'] = coupon.enddate
+    # elif (coupon.startdate is not None) or (coupon.enddate is not None):
+    #     return "Must fill in both startdate and enddate!"
+    if coupon.discountrate is not None:
+        update_data['discountrate'] = coupon.discountrate
+    if coupon.eventtag is not None:
+        update_data['eventtag'] = coupon.eventtag
+    if coupon.minimumamountfordiscount is not None:
+        update_data['minimumamountfordiscount'] = coupon.minimumamountfordiscount
+    
+    # 確認是否有更新資料
+    if update_data:
+        stmt = (
+            update(Discount)
+            .where(Discount.discountcode == discount_code)
+            .values(**update_data)
+        )
+        try:
+            await session.execute(stmt)
+            await session.commit()
+            return f"Coupon {discount_code} updated successfully"
+        except IntegrityError as e:
+            # 在這裡處理違反約束的情況
+            # 您可以根據具體的情況回滾事務或返回相應的錯誤消息
+            await session.rollback()
+            return f"Error: {str(e)}"
+    else:
+        return f"No data provided for update on Coupon {discount_code}"
