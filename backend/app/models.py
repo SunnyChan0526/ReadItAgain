@@ -126,3 +126,4 @@ class CouponEdit(BaseModel):
     discountrate: Optional[float] = Query(None)
     eventtag: Optional[str] = Query(None)
     minimumamountfordiscount: Optional[int] = Query(None)
+
