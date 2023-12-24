@@ -748,14 +748,16 @@ async def get_seller_store(
 async def get_current_customer(token: str, session: AsyncSession):
     user = await get_current_user_data(token, session)
     customer = await session.scalars(select(Customer).where(Customer.customerid == user.userid))
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
     return customer.first()
-
 
 async def get_current_seller(token: str, session: AsyncSession):
     user = await get_current_user_data(token, session)
     seller = await session.scalars(select(Seller).where(Seller.sellerid == user.userid))
+    if not seller:
+        raise HTTPException(status_code=404, detail="Seller not found")
     return seller.first()
-
 
 async def get_book_details(session: AsyncSession, order_id: int):
     books = await session.scalars(select(Book).where(Book.orderid == order_id))
@@ -788,8 +790,6 @@ async def view_order_list_customer(
     session: AsyncSession = Depends(get_session),
 ):
     customer = await get_current_customer(token, session)
-    if not customer:
-        raise HTTPException(status_code=404, detail="Customer not found")
 
     orders = await session.scalars(select(Orders).where(Orders.customerid == customer.customerid))
     orders = orders.all()
@@ -826,8 +826,6 @@ async def view_order_list_seller(
     session: AsyncSession = Depends(get_session),
 ):
     seller = await get_current_seller(token, session)
-    if not seller:
-        raise HTTPException(status_code=404, detail="Seller not found")
 
     orders = await session.scalars(select(Orders).where(Orders.sellerid == seller.sellerid))
     orders = orders.all()
@@ -905,19 +903,13 @@ async def get_order_details(session: AsyncSession, user_type: str, user_id: int,
 @app.get("/customer/orders/{order_id}")
 async def get_order_details_customer(token: str,  order_id: int, session: AsyncSession = Depends(get_session)):
     customer = await get_current_customer(token, session)
-    if not customer:
-        raise HTTPException(status_code=404, detail="Customer not found")
-
     order_detail = await get_order_details(session, "customer", customer.customerid, order_id)
     return order_detail
 
 
 @app.get("/seller/orders/{order_id}")
-async def get_order_details_seller(token: str,  order_id: int, session: AsyncSession = Depends(get_session)):
+async def get_order_details_seller(token: str, order_id: int, session: AsyncSession = Depends(get_session)):
     seller = await get_current_seller(token, session)
-    if not seller:
-        raise HTTPException(status_code=404, detail="Seller not found")
-
     order_detail = await get_order_details(session, "seller", seller.sellerid, order_id)
     return order_detail
 
@@ -925,10 +917,7 @@ async def get_order_details_seller(token: str,  order_id: int, session: AsyncSes
 @app.get("/seller/orders/{order_id}/comment")
 async def view_comment_for_seller(token: str,  order_id: int, session: AsyncSession = Depends(get_session)):
     seller = await get_current_seller(token, session)
-    if not seller:
-        raise HTTPException(status_code=404, detail="Seller not found")
-
-    comment = await session.scalar(select(Orders.comment).where(Orders.orderid == order_id))
+    comment = await session.scalar(select(Orders.comment).where(Orders.orderid == order_id, Orders.sellerid == seller.sellerid))
     stars = await session.scalar(select(Orders.stars).where(Orders.orderid == order_id))
 
     if comment is None and stars is None:
@@ -937,17 +926,31 @@ async def view_comment_for_seller(token: str,  order_id: int, session: AsyncSess
     return {"comment": comment, "stars": stars}
 
 
-@app.post("/update_orders/{order_id}")
-async def update_orders(order_id: int, current_status: str, session: AsyncSession = Depends(get_session)):
-    if current_status == 'To ship':
-        next_status = 'Shipping'
-    elif current_status == 'Shipping':
-        next_status = 'Completed'
-    elif current_status == 'Completed':
-        next_status = 'Completed'
+@app.post("/update_orders_status/{person}/{order_id}")
+async def update_orders(person: str, order_id: int, token: str, session: AsyncSession = Depends(get_session)):
+    if person == 'seller':
+        seller = await get_current_seller(token, session)
+        current_status = await session.scalars(select(Orders.orderstatus).where(Orders.orderid == order_id, Orders.sellerid == seller.sellerid))
+        if current_status == 'To ship':
+            next_status = 'Shipping'
+        elif current_status == 'Shipping':
+            next_status = 'Completed'
+        elif current_status == 'Completed':
+            next_status = 'Completed'
+        else:
+            raise HTTPException(status_code=400, detail="Invalid order status to proceed.")
+    elif person == 'customer':
+        customer = await get_current_customer(token, session)
+        current_status = await session.scalars(select(Orders.orderstatus).where(Orders.orderid == order_id, Orders.customerid == customer.customerid))
+        if current_status == 'Shipping':
+            next_status = 'Completed'
+        elif current_status == 'Completed':
+            next_status = 'Completed'
+        else:
+            raise HTTPException(status_code=400, detail="Invalid order status to proceed. Customer only can update to 'Completed' status")
     else:
-        raise HTTPException(status_code=404, detail=f"current_status: {current_status} can't be update")
-        
+        raise HTTPException(status_code=400, detail="Invalid person role provided")
+    
     sql_update = f'''
                     update ORDERS
                     set OrderStatus = '{next_status}'
@@ -972,12 +975,21 @@ async def update_orders(order_id: int, current_status: str, session: AsyncSessio
     }
     return order_detail
 
-
-@app.post("/cancel_orders_pr/{order_id}")
-async def cancel_orders_pr(order_id: int, session: AsyncSession = Depends(get_session)):
-    order = await session.scalars(select(Orders).where(Orders.orderid == order_id))
+async def get_order(person: str, order_id: int, token: str, session: AsyncSession = Depends(get_session)):
+    if person == 'customer':
+        customer = await get_current_customer(token, session)
+        order = await session.scalars(select(Orders).where(Orders.orderid == order_id, Orders.customerid == customer.customerid))
+    elif person == 'seller':
+        seller = await get_current_seller(token, session)
+        order = await session.scalars(select(Orders).where(Orders.orderid == order_id, Orders.sellerid == seller.sellerid))
+    else:
+        raise HTTPException(status_code=400, detail="Invalid person role provided")
     order = order.first()
+    return order
 
+@app.post("/cancel_orders_pr/{person}/{order_id}")
+async def cancel_orders_pr(person: str, order_id: int, token: str, session: AsyncSession = Depends(get_session)):
+    order = await get_order(person, order_id, token, session)
     if order:
         order.orderstatus = "Cancelling"
         await session.commit()
@@ -985,12 +997,9 @@ async def cancel_orders_pr(order_id: int, session: AsyncSession = Depends(get_se
     else:
         raise HTTPException(status_code=404, detail="Order not found")
 
-
-@app.post("/cancel_orders/{order_id}")
-async def cancel_orders_pr(order_id: int, reason: str, is_accepted: bool, session: AsyncSession = Depends(get_session)):
-    order = await session.scalars(select(Orders).where(Orders.orderid == order_id))
-    order = order.first()
-
+@app.post("/cancel_orders/{person}/{order_id}")
+async def cancel_orders_pr(person: str, order_id: int, reason: str, is_accepted: bool, token:str, session: AsyncSession = Depends(get_session)):
+    order = await get_order(person, order_id, token, session)
     if order:
         if is_accepted:
             order.orderstatus = "Cancelled"
@@ -1002,8 +1011,7 @@ async def cancel_orders_pr(order_id: int, reason: str, is_accepted: bool, sessio
     else:
         raise HTTPException(status_code=404, detail="Order not found")
 
-
-@app.post("/{order_id}/comment")
+@app.post("/comment/{order_id}")
 async def customer_comment(
         token: str,
         order_id: int,
@@ -1011,11 +1019,8 @@ async def customer_comment(
         comment_input: str,
         session: AsyncSession = Depends(get_session)):
     customer = await get_current_customer(token, session)
-    if not customer:
-        raise HTTPException(status_code=404, detail="Customer not found")
-
     order = await session.scalars(
-        select(Orders).where(Orders.customerid == customer.customerid, Orders.orderid == order_id))
+        select(Orders).where(Orders.orderid == order_id, Orders.customerid == customer.customerid))
     order = order.first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -1045,9 +1050,10 @@ def coupon_to_dict(coupon, coupons_dict):
         coupons_dict[coupon.type] = []
     coupons_dict[coupon.type].append(info)
 
-@app.get("/coupon/view/{seller_id}/{type}")
-async def view_coupon(seller_id: int, type: str, session: AsyncSession = Depends(get_session)):
-    coupons = await session.scalars(select(Discount).where(Discount.sellerid == seller_id))
+@app.get("/seller_page/coupon/view/{type}")
+async def view_coupon(type: str, token: str, session: AsyncSession = Depends(get_session)):
+    seller = await get_current_seller(token, session)
+    coupons = await session.scalars(select(Discount).where(Discount.sellerid == seller.sellerid))
     coupons = coupons.all()
     coupons_dict = {}
     if type == 'all':
@@ -1069,12 +1075,13 @@ async def view_coupon(seller_id: int, type: str, session: AsyncSession = Depends
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid coupon type. Supported types are 'all', 'ongoing', 'upcoming', 'expired'")
     return coupons_dict
 
-@app.post("/coupon/create/{seller_id}", response_model=Discount)
-async def create_coupon(coupon: CouponCreate, seller_id: int, session: AsyncSession = Depends(get_session)):
+@app.post("/seller_page/coupon/create", response_model=Discount)
+async def create_coupon(coupon: CouponCreate, token: str, session: AsyncSession = Depends(get_session)):
+    seller = await get_current_seller(token, session)
     valid_types = ['shipping fee', 'seasoning', 'special event']
     if coupon.type not in valid_types:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid coupon type. Supported types are {valid_types}")
-    new_coupon = Discount(sellerid=seller_id, **coupon.dict())
+    new_coupon = Discount(sellerid=seller.seller_id, **coupon.dict())
     session.add(new_coupon)
     await session.commit()
     return new_coupon
