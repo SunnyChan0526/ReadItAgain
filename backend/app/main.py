@@ -686,9 +686,8 @@ async def order_create(seller_id: int, shipping_options: str, selected_coupons: 
         await session.commit()
     return orders
 
+
 # seller-page (for customer)
-
-
 async def get_seller_info(seller_id: int, session: AsyncSession = Depends(get_session)):
     seller = await session.scalars(select(Seller).where(Seller.sellerid == seller_id))
     seller = seller.first()
@@ -1239,10 +1238,18 @@ async def view_books_list_for_seller(token: str, book_id: Optional[int] = None, 
     if not books:
         return {"message": "No books found for this seller."}
 
-    formatted_books = []
+    status_books = {
+        "To ship": [],
+        "Shipping": [],
+        "Completed": [],
+        "Not sold": [],
+        "Other": []
+    }
+
     for book in books:
         order = await session.scalars(select(Orders).where(Orders.orderid == book.orderid))
         order = order.first()
+        status = order.orderstatus if order else "Not sold"
 
         picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
         picture = picture.first()
@@ -1254,7 +1261,10 @@ async def view_books_list_for_seller(token: str, book_id: Optional[int] = None, 
             "picture_path": picture_path,
             "description": book.description,
             "price": book.price,
-            "status": order.orderstatus if order else "Not sold",
+            "status": status,
         }
-        formatted_books.append(book_details)
-    return formatted_books
+        if status in status_books:
+            status_books[status].append(book_details)
+        else:
+            status_books["Other"].append(book_details)
+    return status_books
