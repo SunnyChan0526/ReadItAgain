@@ -1,3 +1,4 @@
+from fastapi import Header
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query, Depends, HTTPException, status, Security, UploadFile
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -843,7 +844,7 @@ async def view_order_list_seller(
 
     orderlist = []
     for order in orders:
-        if order.orderstatus != 'All' and order.orderstatus != order_status:
+        if order_status and order_status != 'All' and order.orderstatus != order_status:
             continue
 
         book_details = await get_book_details(session, order.orderid)
@@ -1447,3 +1448,33 @@ async def delete_book(book_id: int,
     await session.commit()
 
     return {"message": "Removed succeed"}
+
+
+@app.get("/seller/books/{book_id}")
+async def get_book_details_by_seller(
+    token: str,
+    book_id: int,
+    session: AsyncSession = Depends(get_session)
+):
+    seller = await get_current_seller(token, session)
+    book = await session.scalars(select(Book).where(Book.sellerid == seller.sellerid, Book.bookid == book_id))
+    book = book.first()
+
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    pictures = await session.scalars(select(Picture_List).where(Picture_List.bookid == book_id))
+    pictures = pictures.all()
+
+    book_detail = {
+        "sellerid": book.sellerid,
+        "isbn": book.isbn,
+        "name": book.name,
+        "condition": book.condition,
+        "price": book.price,
+        "shippinglocation": book.shippinglocation,
+        "description": book.description,
+        "category": book.category,
+        "state": book.state,  # 新增 state
+        "bookpictures": [p.picturepath for p in pictures]
+    }
+    return book_detail
