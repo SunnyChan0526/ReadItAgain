@@ -1,5 +1,4 @@
-"use client";
-import React, { useState } from "react";
+import React from "react";
 import Image from 'next/image'
 import '@fontsource/roboto/300.css';
 import '@fontsource/roboto/400.css';
@@ -10,12 +9,6 @@ import riatheme from './theme'
 import PrimarySearchAppBar from "./appbar";
 
 function ReadItAgain() {
-  const [searchOpen, setSearchOpen] = useState(false);
-
-  const toggleSearch = () => {
-    setSearchOpen(!searchOpen);
-  };
-
   return (
     <ThemeProvider theme={riatheme}>
     <main className="overflow-x-hidden min-h-screen bg-white flex flex-col">
