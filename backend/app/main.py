@@ -1243,8 +1243,37 @@ async def activate_coupon(token: str, discount_code: int, activate: bool, sessio
         raise HTTPException(status_code=400, detail=f"Error: {str(e)}")
 
 
-@app.get("/seller_page/books")
-async def view_books_list_for_seller(token: str, book_id: Optional[int] = None, session: AsyncSession = Depends(get_session)):
+async def get_book_details_by_booklist(session: AsyncSession, order_id: int):
+    books = await session.scalars(select(Book).where(Book.orderid == order_id))
+    books = books.all()
+
+    book_details = []
+    for book in books:
+        picture_path = ""
+        if book and book.orderid is not None:
+            pictures = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
+            picture = pictures.first()
+            picture_path = picture.picturepath if picture else ""
+
+        book_detail = {
+            "bookname": book.name if book else "",
+            "bookpicturepath": picture_path,
+            "price": book.price if book else 0,
+        }
+        book_details.append(book_detail)
+
+    return book_details
+
+
+@app.get("/seller/books")
+async def view_books_list_for_seller(
+    token: str,
+    bookstate: Optional[str] = Query(None, description='order status'),
+    keyword_type: Optional[str] = Query(None, description='keyword type'),
+    keyword: Optional[str] = Query(None, description='keyword'),
+    book_id: Optional[int] = None,
+    session: AsyncSession = Depends(get_session),
+):
     seller = await get_current_seller(token, session)
 
     if book_id is not None:
@@ -1255,36 +1284,28 @@ async def view_books_list_for_seller(token: str, book_id: Optional[int] = None, 
     if not books:
         return {"message": "No books found for this seller."}
 
-    status_books = {
-        "To ship": [],
-        "Shipping": [],
-        "Completed": [],
-        "Not sold": [],
-        "Other": []
-    }
-
+    booklist = []
     for book in books:
-        order = await session.scalars(select(Orders).where(Orders.orderid == book.orderid))
-        order = order.first()
-        status = order.orderstatus if order else "Not sold"
-
-        picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
-        picture = picture.first()
+        if bookstate != 'All' and book.state != bookstate:
+            continue
+        if keyword_type == 'Book name' and keyword and keyword.lower() not in book.name.lower():
+            continue
+        pictures = await session.execute(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
+        picture = pictures.scalars().first()
         picture_path = picture.picturepath if picture else ""
 
         book_details = {
             "book_id": book.bookid,
-            "book_name": book.name,
-            "picture_path": picture_path,
+            "bookname": book.name,
+            "bookpicturepath": picture_path,
             "description": book.description,
             "price": book.price,
-            "state": status,
+            "state": book.state,
         }
-        if status in status_books:
-            status_books[status].append(book_details)
-        else:
-            status_books["Other"].append(book_details)
-    return status_books
+
+        booklist.append(book_details)
+    return booklist
+
 
 async def get_book(book_id: int, session: AsyncSession = Depends(get_session)):
     book = await session.scalars(select(Book).where(Book.bookid == book_id))
@@ -1292,6 +1313,8 @@ async def get_book(book_id: int, session: AsyncSession = Depends(get_session)):
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
     return book
+
+
 @app.post("/seller_page/books/create")
 async def create_book(token: str,
                       isbn: str,
@@ -1321,7 +1344,8 @@ async def create_book(token: str,
                     '''
     await session.execute(text(sql_update))
     await session.commit()
-    sql_update = update(Book).where(book.bookid == Book.bookid).values(state = book_state)
+    sql_update = update(Book).where(
+        book.bookid == Book.bookid).values(state=book_state)
     await session.execute(sql_update)
     await session.commit()
 
@@ -1341,7 +1365,8 @@ async def create_book(token: str,
     }
     return book_details
 
-@app.patch("/seller/books/{book_id}/edit")
+
+@app.patch("/seller_page/books/{book_id}/edit")
 async def edit_book(token: str,
                     book_id: int,
                     session: AsyncSession = Depends(get_session),
@@ -1359,7 +1384,7 @@ async def edit_book(token: str,
     if book.state != 'ordered':
         if isbn:
             stmt = update(Book).where(Book.bookid ==
-                                        book_id).values(isbn=isbn)
+                                      book_id).values(isbn=isbn)
             await session.execute(stmt)
         if ShippingLocation:
             stmt = update(Book).where(Book.bookid ==
@@ -1395,14 +1420,15 @@ async def edit_book(token: str,
             await session.execute(stmt)
         if book_picture:
             stmt = update(Picture_List).where(Picture_List.bookid ==
-                                      book_id).values(picturepath=book_picture)
+                                              book_id).values(picturepath=book_picture)
             await session.execute(stmt)
         await session.commit()
     else:
         return {"message": "Book has been ordered"}
     return {"message": "Edited succeed"}
 
-@app.delete("/seller/books/{book_id}/remove")
+
+@app.delete("/seller_page/books/{book_id}/remove")
 async def delete_book(book_id: int,
                       session: AsyncSession = Depends(get_session)):
     while True:
