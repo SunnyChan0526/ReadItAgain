@@ -1315,7 +1315,6 @@ async def get_book(book_id: int, session: AsyncSession = Depends(get_session)):
         raise HTTPException(status_code=404, detail="Book not found")
     return book
 
-
 @app.post("/seller_page/books/create")
 async def create_book(token: str,
                       isbn: str,
@@ -1325,7 +1324,7 @@ async def create_book(token: str,
                       Price: int,
                       Description: str,
                       Category: str,
-                      book_picture: str,
+                      init_picture: UploadFile,
                       session: AsyncSession = Depends(get_session)):
     seller = await get_current_seller(token, session)
     book_state = 'no picture'
@@ -1339,9 +1338,16 @@ async def create_book(token: str,
     book = book.first()
     newbook_id = book.bookid
     book_state = 'on sold'
+    if init_picture.content_type in ("image/jpg", "image/jpeg", "image/png"):
+        img_type = init_picture.content_type.split('/')[1]
+        pictureName = f"book{newbook_id}_init.{img_type}"
+        file_location = f"./img/book/book{newbook_id}_init.{img_type}"
+        with open(file_location, "wb") as file_object:
+            shutil.copyfileobj(init_picture.file, file_object)
+
     sql_update = f'''
                     insert into PICTURE_LIST (BookID, PicturePath)
-                    values ({book.bookid}, '{book_picture}')
+                    values ({book.bookid}, '{pictureName}')
                     '''
     await session.execute(text(sql_update))
     await session.commit()
@@ -1366,7 +1372,6 @@ async def create_book(token: str,
     }
     return book_details
 
-
 @app.patch("/seller_page/books/{book_id}/edit")
 async def edit_book(token: str,
                     book_id: int,
@@ -1378,8 +1383,7 @@ async def edit_book(token: str,
                     Price: int = Query(None),
                     Description: str = Query(None),
                     Category: str = Query(None),
-                    state: str = Query(None),
-                    book_picture: str = Query(None)):
+                    state: str = Query(None)):
     seller = await get_current_seller(token, session)
     book = await get_book(book_id, session)
     if book.state != 'ordered':
@@ -1419,15 +1423,57 @@ async def edit_book(token: str,
             stmt = update(Book).where(Book.bookid ==
                                       book_id).values(state=state)
             await session.execute(stmt)
-        if book_picture:
-            stmt = update(Picture_List).where(Picture_List.bookid ==
-                                              book_id).values(picturepath=book_picture)
-            await session.execute(stmt)
         await session.commit()
     else:
         return {"message": "Book has been ordered"}
     return {"message": "Edited succeed"}
 
+@app.post("/seller_page/book/{book_id}/upload_pictures")
+async def upload_book_pictures(
+        token: str,
+        book_id: int,
+        pictures: List[UploadFile],
+        session: AsyncSession = Depends(get_session)
+):
+    seller = await get_current_seller(token, session)
+    uploaded_pictures = []
+    i = 0
+    for picture in pictures:
+        if picture.content_type in ("image/jpg", "image/jpeg", "image/png"):
+            img_type = picture.content_type.split('/')[1]
+            pictureName = f"book{book_id}_{i}.{img_type}"
+            file_location = f"./img/book/book{book_id}_{i}.{img_type}"  # 使用唯一的檔名
+            with open(file_location, "wb") as file_object:
+                shutil.copyfileobj(picture.file, file_object)
+            uploaded_pictures.append(file_location)
+
+            sql_update = f'''
+                                insert into PICTURE_LIST (BookID, PicturePath)
+                                values ({book_id}, '{pictureName}')
+                                '''
+            await session.execute(text(sql_update))
+            await session.commit()
+            i += 1
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Pictures should be images")
+
+    return {"message": f"{len(uploaded_pictures)} pictures uploaded successfully"}
+
+@app.delete("/seller_page/book/{book_id}/remove_picture")
+async def remove_book_picture(token: str,
+                              book_id: int,
+                              picture_id: int,
+                              session: AsyncSession = Depends()):
+    seller = await get_current_seller(token, session)
+    pic = await session.scalars(select(Picture_List).where(Picture_List.pictureid == picture_id and Picture_List.bookid == book_id))
+    pic = pic.first()
+    if not pic:
+        raise HTTPException(status_code=404, detail="Seller not found")
+
+    await session.delete(pic)
+    await session.commit()
+    return {"message": "removed successfully"}
 
 @app.delete("/seller_page/books/{book_id}/remove")
 async def delete_book(book_id: int,
@@ -1447,7 +1493,7 @@ async def delete_book(book_id: int,
     await session.delete(book)
     await session.commit()
 
-    return {"message": "Removed succeed"}
+    return {"message": "Removed successfully"}
 
 
 @app.get("/seller/books/{book_id}")
