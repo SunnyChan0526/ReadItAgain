@@ -7,6 +7,7 @@ import '@fontsource/roboto/700.css';
 import { ThemeProvider } from '@mui/material/styles'
 import riatheme from './theme'
 import PrimarySearchAppBar from "./appbar";
+
 function ReadItAgain() {
   return (
     <ThemeProvider theme={riatheme}>
@@ -25,9 +26,8 @@ function ReadItAgain() {
     </ThemeProvider>
   );
 }
-
-
 export default ReadItAgain;
+
 export function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-between p-24">
