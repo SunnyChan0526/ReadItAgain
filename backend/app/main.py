@@ -1082,7 +1082,7 @@ def coupon_to_dict(coupon, coupons_dict):
     coupons_dict[coupon.type].append(info)
 
 
-@app.get("/seller_page/coupon/view/{type}")
+@app.get("/seller/coupon/{type}")
 async def view_coupon(type: str, token: str, session: AsyncSession = Depends(get_session)):
     seller = await get_current_seller(token, session)
     coupons = await session.scalars(select(Discount).where(Discount.sellerid == seller.sellerid))
@@ -1109,7 +1109,7 @@ async def view_coupon(type: str, token: str, session: AsyncSession = Depends(get
     return coupons_dict
 
 
-@app.post("/seller_page/coupon/create", response_model=Discount)
+@app.post("/seller/coupon/create", response_model=Discount)
 async def create_coupon(coupon: CouponCreate, token: str, session: AsyncSession = Depends(get_session)):
     seller = await get_current_seller(token, session)
     valid_types = ['shipping fee', 'seasoning', 'special event']
@@ -1122,7 +1122,7 @@ async def create_coupon(coupon: CouponCreate, token: str, session: AsyncSession 
     return new_coupon
 
 
-@app.patch("/seller_page/coupon/edit/{discount_code}")
+@app.patch("/seller/coupon/edit/{discount_code}")
 async def edit_coupon(token: str, coupon: CouponEdit, discount_code: int, session: AsyncSession = Depends(get_session)):
     seller = await get_current_seller(token, session)
 
@@ -1185,7 +1185,7 @@ async def edit_coupon(token: str, coupon: CouponEdit, discount_code: int, sessio
             status_code=400, detail=f"Coupon {discount_code} had been appied already")
 
 
-@app.delete("/seller_page/coupon/delete/{discount_code}")
+@app.delete("/seller/coupon/delete/{discount_code}")
 async def delete_coupon(token: str, discount_code: int, session: AsyncSession = Depends(get_session)):
     seller = await get_current_seller(token, session)
 
@@ -1217,7 +1217,7 @@ async def delete_coupon(token: str, discount_code: int, session: AsyncSession = 
         return f"Coupon {discount_code} had been appied already"
 
 
-@app.post("/seller_page/coupon/activate/{discount_code}")
+@app.post("/seller/coupon/activate/{discount_code}")
 async def activate_coupon(token: str, discount_code: int, activate: bool, session: AsyncSession = Depends(get_session)):
     seller = await get_current_seller(token, session)
 
@@ -1242,28 +1242,6 @@ async def activate_coupon(token: str, discount_code: int, activate: bool, sessio
         # 您可以根據具體的情況回滾事務或返回相應的錯誤消息
         await session.rollback()
         raise HTTPException(status_code=400, detail=f"Error: {str(e)}")
-
-
-async def get_book_details_by_booklist(session: AsyncSession, order_id: int):
-    books = await session.scalars(select(Book).where(Book.orderid == order_id))
-    books = books.all()
-
-    book_details = []
-    for book in books:
-        picture_path = ""
-        if book and book.orderid is not None:
-            pictures = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
-            picture = pictures.first()
-            picture_path = picture.picturepath if picture else ""
-
-        book_detail = {
-            "bookname": book.name if book else "",
-            "bookpicturepath": picture_path,
-            "price": book.price if book else 0,
-        }
-        book_details.append(book_detail)
-
-    return book_details
 
 
 @app.get("/seller/books")
@@ -1319,13 +1297,13 @@ async def get_book(book_id: int, session: AsyncSession = Depends(get_session)):
 @app.get("/book/{book_id}")
 async def get_book_img(book_id: int, session: AsyncSession = Depends(get_session)):
     book = await get_book(book_id, session)
-    pictures = await session.scalars(select(Picture_List).where(Picture_List.bookid == book_id).order_by(Picture_List.pictureid))
+    pictures = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
     pictures = pictures.all()
     bookpictures = [p.picturepath for p in pictures]
     return bookpictures
 
 
-@app.post("/seller_page/books/create")
+@app.post("/seller/books/create")
 async def create_book(token: str,
                       isbn: str,
                       ShippingLocation: str,
@@ -1374,15 +1352,13 @@ async def create_book(token: str,
     await session.commit()
 
     book = await get_book(newbook_id, session)
-    picture = await session.scalars(
-        select(Picture_List).where(Picture_List.bookid == newbook_id).order_by(Picture_List.pictureid))
-    picture = picture.first()
-    picture_path = picture.picturepath if picture else ""
+    pictures = await session.scalars(select(Picture_List).where(Picture_List.bookid == newbook_id).order_by(Picture_List.pictureid))
+    pictures = pictures.all()
 
     book_details = {
         "book_id": book.bookid,
         "book_name": book.name,
-        "picture_path": picture_path,
+        "picture_path": [p.picturepath for p in pictures],
         "description": book.description,
         "price": book.price,
         "state": book.state,
@@ -1390,7 +1366,7 @@ async def create_book(token: str,
     return book_details
 
 
-@app.patch("/seller_page/books/{book_id}/edit")
+@app.patch("/seller/books/{book_id}/edit")
 async def edit_book(token: str,
                     book_id: int,
                     session: AsyncSession = Depends(get_session),
@@ -1447,7 +1423,7 @@ async def edit_book(token: str,
     return {"message": "Edited succeed"}
 
 
-@app.post("/seller_page/book/{book_id}/upload_pictures")
+@app.post("/seller/books/{book_id}/upload_pictures")
 async def upload_book_pictures(
         token: str,
         book_id: int,
@@ -1485,7 +1461,7 @@ async def upload_book_pictures(
     return {"message": f"{len(uploaded_pictures)} pictures uploaded successfully"}
 
 
-@app.delete("/seller_page/book/{book_id}/remove_picture")
+@app.delete("/seller/books/{book_id}/remove_picture")
 async def remove_book_picture(token: str,
                               book_id: int,
                               picture_id: int,
@@ -1501,7 +1477,7 @@ async def remove_book_picture(token: str,
     return {"message": "removed successfully"}
 
 
-@app.delete("/seller_page/books/{book_id}/remove")
+@app.delete("/seller/books/{book_id}/remove")
 async def delete_book(book_id: int,
                       session: AsyncSession = Depends(get_session)):
     while True:
