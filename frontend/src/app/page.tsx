@@ -4,15 +4,10 @@ import '@fontsource/roboto/300.css';
 import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
 import '@fontsource/roboto/700.css';
-import { ThemeProvider } from '@mui/material/styles'
-import riatheme from './theme'
-import PrimarySearchAppBar from "./appbar";
 
 function ReadItAgain() {
   return (
-    <ThemeProvider theme={riatheme}>
     <main className="overflow-x-hidden min-h-screen bg-white flex flex-col">
-      <PrimarySearchAppBar></PrimarySearchAppBar>
         <img
           loading="lazy"
           src="/banner.png"
@@ -23,7 +18,6 @@ function ReadItAgain() {
           Welcome to Read it again!
         </div>
     </main>
-    </ThemeProvider>
   );
 }
 export default ReadItAgain;
