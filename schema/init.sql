@@ -144,7 +144,7 @@ CREATE TABLE BOOK (
     ISBN VARCHAR(20) NOT NULL,
     ShippingLocation VARCHAR(6) NOT NULL,
     Name VARCHAR(100) NOT NULL,
-    Condition VARCHAR(3) NOT NULL,
+    Condition VARCHAR(10) NOT NULL,
     Price INTEGER NOT NULL,
     Description VARCHAR(1000) NOT NULL,
     Category VARCHAR(50) NOT NULL,

@@ -1317,7 +1317,7 @@ async def get_book(book_id: int, session: AsyncSession = Depends(get_session)):
 
 
 @app.get("/book/{book_id}")
-async def get_book_img(book_id: int, session: AsyncSession =Depends(get_session)):
+async def get_book_img(book_id: int, session: AsyncSession = Depends(get_session)):
     book = await get_book(book_id, session)
     pictures = await session.scalars(select(Picture_List).where(Picture_List.bookid == book_id).order_by(Picture_List.pictureid))
     pictures = pictures.all()
@@ -1348,7 +1348,7 @@ async def create_book(token: str,
     book = await session.scalars(select(Book).where(Book.state == 'no picture'))
     book = book.first()
     newbook_id = book.bookid
-    book_state = 'on sold'
+    book_state = 'on sale'
     i = 1
 
     for picture in init_pictures:
@@ -1367,7 +1367,6 @@ async def create_book(token: str,
             await session.execute(text(sql_update))
             await session.commit()
             i += 1
-
 
     sql_update = update(Book).where(
         book.bookid == Book.bookid).values(state=book_state)
@@ -1466,7 +1465,8 @@ async def upload_book_pictures(
         if picture.content_type in ("image/jpg", "image/jpeg", "image/png"):
             img_type = picture.content_type.split('/')[1]
             pictureName = f"book{book_id}_{i}.{img_type}"
-            file_location = f"./img/book/book{book_id}_{i}.{img_type}"  # 使用唯一的檔名
+            # 使用唯一的檔名
+            file_location = f"./img/book/book{book_id}_{i}.{img_type}"
             with open(file_location, "wb") as file_object:
                 shutil.copyfileobj(picture.file, file_object)
             uploaded_pictures.append(file_location)
