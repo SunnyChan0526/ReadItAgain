@@ -1,6 +1,6 @@
 from fastapi import Header
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Query, Depends, HTTPException, status, Security, UploadFile
+from fastapi import FastAPI, Query, Depends, HTTPException, status, Security, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import FileResponse
 from passlib.context import CryptContext
@@ -771,7 +771,7 @@ async def get_current_seller(token: str, session: AsyncSession):
     return seller.first()
 
 
-async def get_book_details(session: AsyncSession, order_id: int):
+async def get_order_book_details(session: AsyncSession, order_id: int):
     books = await session.scalars(select(Book).where(Book.orderid == order_id))
     books = books.all()
 
@@ -796,7 +796,7 @@ async def get_book_details(session: AsyncSession, order_id: int):
 @app.get("/customer/orders")
 async def view_order_list_customer(
     token: str,
-    order_status: Optional[str] = Query(None, description='order status'),
+    order_status: Optional[str] = Query(description='order status'),
     keyword_type: Optional[str] = Query(None, description='keyword type'),
     keyword: Optional[str] = Query(None, description='keyword'),
     session: AsyncSession = Depends(get_session),
@@ -811,7 +811,7 @@ async def view_order_list_customer(
         if order_status and order_status != 'All' and order.orderstatus != order_status:
             continue
 
-        book_details = await get_book_details(session, order.orderid)
+        book_details = await get_order_book_details(session, order.orderid)
         if keyword_type == 'Book name' and keyword:
             book_names = [book['bookname'] for book in book_details]
             if keyword not in book_names:
@@ -832,7 +832,7 @@ async def view_order_list_customer(
 @app.get("/seller/orders")
 async def view_order_list_seller(
     token: str,
-    order_status: Optional[str] = Query(None, description='order status'),
+    order_status: Optional[str] = Query(description='order status'),
     keyword_type: Optional[str] = Query(None, description='keyword type'),
     keyword: Optional[str] = Query(None, description='keyword'),
     session: AsyncSession = Depends(get_session),
@@ -847,7 +847,7 @@ async def view_order_list_seller(
         if order_status and order_status != 'All' and order.orderstatus != order_status:
             continue
 
-        book_details = await get_book_details(session, order.orderid)
+        book_details = await get_order_book_details(session, order.orderid)
         if keyword_type == 'Book name' and keyword:
             book_names = [book['bookname'] for book in book_details]
             if keyword not in book_names:
@@ -1082,7 +1082,7 @@ def coupon_to_dict(coupon, coupons_dict):
     coupons_dict[coupon.type].append(info)
 
 
-@app.get("/seller_page/coupon/view/{type}")
+@app.get("/seller/coupon/{type}")
 async def view_coupon(type: str, token: str, session: AsyncSession = Depends(get_session)):
     seller = await get_current_seller(token, session)
     coupons = await session.scalars(select(Discount).where(Discount.sellerid == seller.sellerid))
@@ -1109,7 +1109,7 @@ async def view_coupon(type: str, token: str, session: AsyncSession = Depends(get
     return coupons_dict
 
 
-@app.post("/seller_page/coupon/create", response_model=Discount)
+@app.post("/seller/coupon/create", response_model=Discount)
 async def create_coupon(coupon: CouponCreate, token: str, session: AsyncSession = Depends(get_session)):
     seller = await get_current_seller(token, session)
     valid_types = ['shipping fee', 'seasoning', 'special event']
@@ -1122,7 +1122,7 @@ async def create_coupon(coupon: CouponCreate, token: str, session: AsyncSession 
     return new_coupon
 
 
-@app.patch("/seller_page/coupon/edit/{discount_code}")
+@app.patch("/seller/coupon/edit/{discount_code}")
 async def edit_coupon(token: str, coupon: CouponEdit, discount_code: int, session: AsyncSession = Depends(get_session)):
     seller = await get_current_seller(token, session)
 
@@ -1185,7 +1185,7 @@ async def edit_coupon(token: str, coupon: CouponEdit, discount_code: int, sessio
             status_code=400, detail=f"Coupon {discount_code} had been appied already")
 
 
-@app.delete("/seller_page/coupon/delete/{discount_code}")
+@app.delete("/seller/coupon/delete/{discount_code}")
 async def delete_coupon(token: str, discount_code: int, session: AsyncSession = Depends(get_session)):
     seller = await get_current_seller(token, session)
 
@@ -1217,7 +1217,7 @@ async def delete_coupon(token: str, discount_code: int, session: AsyncSession = 
         return f"Coupon {discount_code} had been appied already"
 
 
-@app.post("/seller_page/coupon/activate/{discount_code}")
+@app.post("/seller/coupon/activate/{discount_code}")
 async def activate_coupon(token: str, discount_code: int, activate: bool, session: AsyncSession = Depends(get_session)):
     seller = await get_current_seller(token, session)
 
@@ -1244,32 +1244,10 @@ async def activate_coupon(token: str, discount_code: int, activate: bool, sessio
         raise HTTPException(status_code=400, detail=f"Error: {str(e)}")
 
 
-async def get_book_details_by_booklist(session: AsyncSession, order_id: int):
-    books = await session.scalars(select(Book).where(Book.orderid == order_id))
-    books = books.all()
-
-    book_details = []
-    for book in books:
-        picture_path = ""
-        if book and book.orderid is not None:
-            pictures = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
-            picture = pictures.first()
-            picture_path = picture.picturepath if picture else ""
-
-        book_detail = {
-            "bookname": book.name if book else "",
-            "bookpicturepath": picture_path,
-            "price": book.price if book else 0,
-        }
-        book_details.append(book_detail)
-
-    return book_details
-
-
 @app.get("/seller/books")
 async def view_books_list_for_seller(
     token: str,
-    bookstate: Optional[str] = Query(None, description='order status'),
+    bookstate: Optional[str] = Query(description='order status'),
     keyword_type: Optional[str] = Query(None, description='keyword type'),
     keyword: Optional[str] = Query(None, description='keyword'),
     book_id: Optional[int] = None,
@@ -1316,7 +1294,16 @@ async def get_book(book_id: int, session: AsyncSession = Depends(get_session)):
     return book
 
 
-@app.post("/seller_page/books/create")
+@app.get("/book/{book_id}")
+async def get_book_img(book_id: int, session: AsyncSession = Depends(get_session)):
+    book = await get_book(book_id, session)
+    pictures = await session.scalars(select(Picture_List).where(Picture_List.bookid == book.bookid).order_by(Picture_List.pictureid))
+    pictures = pictures.all()
+    bookpictures = [p.picturepath for p in pictures]
+    return bookpictures
+
+
+@app.post("/seller/books/create")
 async def create_book(token: str,
                       isbn: str,
                       ShippingLocation: str,
@@ -1325,7 +1312,7 @@ async def create_book(token: str,
                       Price: int,
                       Description: str,
                       Category: str,
-                      book_picture: str,
+                      init_pictures: List[UploadFile],
                       session: AsyncSession = Depends(get_session)):
     seller = await get_current_seller(token, session)
     book_state = 'no picture'
@@ -1335,31 +1322,43 @@ async def create_book(token: str,
                     '''
     await session.execute(text(sql_update))
     await session.commit()
+
     book = await session.scalars(select(Book).where(Book.state == 'no picture'))
     book = book.first()
     newbook_id = book.bookid
-    book_state = 'on sold'
-    sql_update = f'''
-                    insert into PICTURE_LIST (BookID, PicturePath)
-                    values ({book.bookid}, '{book_picture}')
-                    '''
-    await session.execute(text(sql_update))
-    await session.commit()
+    book_state = 'on sale'
+    i = 1
+
+    for picture in init_pictures:
+        if picture.content_type in ("image/jpg", "image/jpeg", "image/png"):
+            img_type = picture.content_type.split('/')[1]
+            pictureName = f"book{newbook_id}_{i}.{img_type}"
+
+            file_location = f"./img/book/{pictureName}.{img_type}"
+            with open(file_location, "wb") as file_object:
+                shutil.copyfileobj(picture.file, file_object)
+
+            sql_update = f'''
+                            insert into PICTURE_LIST (BookID, PicturePath)
+                            values ({book.bookid}, '{pictureName}')
+                            '''
+            await session.execute(text(sql_update))
+            await session.commit()
+            i += 1
+
     sql_update = update(Book).where(
         book.bookid == Book.bookid).values(state=book_state)
     await session.execute(sql_update)
     await session.commit()
 
     book = await get_book(newbook_id, session)
-    picture = await session.scalars(
-        select(Picture_List).where(Picture_List.bookid == newbook_id).order_by(Picture_List.pictureid))
-    picture = picture.first()
-    picture_path = picture.picturepath if picture else ""
+    pictures = await session.scalars(select(Picture_List).where(Picture_List.bookid == newbook_id).order_by(Picture_List.pictureid))
+    pictures = pictures.all()
 
     book_details = {
         "book_id": book.bookid,
         "book_name": book.name,
-        "picture_path": picture_path,
+        "picture_path": [p.picturepath for p in pictures],
         "description": book.description,
         "price": book.price,
         "state": book.state,
@@ -1367,7 +1366,7 @@ async def create_book(token: str,
     return book_details
 
 
-@app.patch("/seller_page/books/{book_id}/edit")
+@app.patch("/seller/books/{book_id}/edit")
 async def edit_book(token: str,
                     book_id: int,
                     session: AsyncSession = Depends(get_session),
@@ -1378,8 +1377,7 @@ async def edit_book(token: str,
                     Price: int = Query(None),
                     Description: str = Query(None),
                     Category: str = Query(None),
-                    state: str = Query(None),
-                    book_picture: str = Query(None)):
+                    state: str = Query(None)):
     seller = await get_current_seller(token, session)
     book = await get_book(book_id, session)
     if book.state != 'ordered':
@@ -1419,17 +1417,67 @@ async def edit_book(token: str,
             stmt = update(Book).where(Book.bookid ==
                                       book_id).values(state=state)
             await session.execute(stmt)
-        if book_picture:
-            stmt = update(Picture_List).where(Picture_List.bookid ==
-                                              book_id).values(picturepath=book_picture)
-            await session.execute(stmt)
         await session.commit()
     else:
         return {"message": "Book has been ordered"}
     return {"message": "Edited succeed"}
 
 
-@app.delete("/seller_page/books/{book_id}/remove")
+@app.post("/seller/books/{book_id}/upload_pictures")
+async def upload_book_pictures(
+        token: str,
+        book_id: int,
+        pictures: List[UploadFile] = File(...),
+        session: AsyncSession = Depends(get_session)
+):
+    seller = await get_current_seller(token, session)
+    uploaded_pictures = []
+    old_picture = await session.scalars(select(Picture_List).where(Picture_List.bookid == book_id).order_by(desc(Picture_List.pictureid)))
+    old_picture = old_picture.first()
+    i = old_picture.picturepath.split('_')[1].split('.')[0]
+    i = int(i) + 1
+
+    for picture in pictures:
+        if picture.content_type in ("image/jpg", "image/jpeg", "image/png"):
+            img_type = picture.content_type.split('/')[1]
+            pictureName = f"book{book_id}_{i}.{img_type}"
+            # 使用唯一的檔名
+            file_location = f"./img/book/book{book_id}_{i}.{img_type}"
+            with open(file_location, "wb") as file_object:
+                shutil.copyfileobj(picture.file, file_object)
+            uploaded_pictures.append(file_location)
+
+            sql_update = f'''
+                                insert into PICTURE_LIST (BookID, PicturePath)
+                                values ({book_id}, '{pictureName}')
+                                '''
+            await session.execute(text(sql_update))
+            await session.commit()
+            i += 1
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Pictures should be images")
+
+    return {"message": f"{len(uploaded_pictures)} pictures uploaded successfully"}
+
+
+@app.delete("/seller/books/{book_id}/remove_picture")
+async def remove_book_picture(token: str,
+                              book_id: int,
+                              picture_id: int,
+                              session: AsyncSession = Depends(get_session)):
+    seller = await get_current_seller(token, session)
+    pic = await session.scalars(select(Picture_List).where(Picture_List.pictureid == picture_id, Picture_List.bookid == book_id))
+    pic = pic.first()
+    if not pic:
+        raise HTTPException(status_code=404, detail="Picture not found")
+
+    await session.delete(pic)
+    await session.commit()
+    return {"message": "removed successfully"}
+
+
+@app.delete("/seller/books/{book_id}/remove")
 async def delete_book(book_id: int,
                       session: AsyncSession = Depends(get_session)):
     while True:
@@ -1447,7 +1495,7 @@ async def delete_book(book_id: int,
     await session.delete(book)
     await session.commit()
 
-    return {"message": "Removed succeed"}
+    return {"message": "Removed successfully"}
 
 
 @app.get("/seller/books/{book_id}")
