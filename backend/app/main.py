@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query, Depends, HTTPException, status, Security, UploadFile
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from passlib.context import CryptContext
 from datetime import datetime, timedelta, date
 from jose import JWTError, jwt
@@ -174,29 +174,41 @@ async def get_imgs(type: str, imgfilename: str):
 
 @app.post("/register")
 async def register(member: Member, session: AsyncSession = Depends(get_session)):
-    hashed_password = get_password_hash(member.password)
-    member = Member(
-        memberaccount=member.memberaccount,
-        password=hashed_password,
-        name=member.name,
-        gender=member.gender,
-        phone=member.phone,
-        email=member.email,
-        birthdate=date.fromisoformat(member.birthdate),
-        verified="未認證",
-        usertype="Standard",
-        profilepicture="default.jpg"
-    )
-    session.add(member)
-    await session.commit()
-    await session.refresh(member)
-    stmt = insert(Seller).values(sellerid=member.userid)
-    await session.execute(stmt)
-    await session.commit()
-    stmt = insert(Customer).values(customerid=member.userid)
-    await session.execute(stmt)
-    await session.commit()
-    return member
+    try:
+        hashed_password = get_password_hash(member.password)
+        member = Member(
+            memberaccount=member.memberaccount,
+            password=hashed_password,
+            name=member.name,
+            gender=member.gender,
+            phone=member.phone,
+            email=member.email,
+            birthdate=date.fromisoformat(member.birthdate),
+            verified="未認證",
+            usertype="Standard",
+            profilepicture="default.jpg"
+        )
+        session.add(member)
+        await session.commit()
+        await session.refresh(member)
+        
+        # Insert into Seller table
+        stmt = insert(Seller).values(sellerid=member.userid)
+        await session.execute(stmt)
+        await session.commit()
+        
+        # Insert into Customer table
+        stmt = insert(Customer).values(customerid=member.userid)
+        await session.execute(stmt)
+        await session.commit()
+
+        # Return success response
+        return JSONResponse(status_code=200, content={"success": True})
+
+    except Exception as e:
+        # Handle exception and return error response
+        # You can customize the status code and message as needed
+        return JSONResponse(status_code=400, content={"success": False, "message": str(e)})
 
 
 @app.post("/token", response_model=Token)
@@ -217,7 +229,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     access_token = create_access_token(
         data={"sub": user.memberaccount}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"success":True,"access_token": access_token, "token_type": "bearer"}
 
 # book search
 

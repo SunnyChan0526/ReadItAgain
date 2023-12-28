@@ -4,6 +4,7 @@ from fastapi import Query
 from typing import Optional
 
 class Token(BaseModel):
+    success: bool
     access_token: str
     token_type: str
 

@@ -3,21 +3,21 @@ const nextConfig = {
     rewrites: async () => {
         return [
           {
-            source: "/api/:path*",
+            source: "/api/py/:path*",
             destination:
               process.env.NODE_ENV === "development"
                 ? "http://localhost:8000/:path*"
                 : "/",
           },
           {
-            source: "/docs",
+            source: "/api/py/docs",
             destination:
               process.env.NODE_ENV === "development"
                 ? "http://localhost:8000/docs"
                 : "/docs",
           },
           {
-            source: "/openapi.json",
+            source: "/api/py/openapi.json",
             destination:
               process.env.NODE_ENV === "development"
                 ? "http://localhost:8000/openapi.json"

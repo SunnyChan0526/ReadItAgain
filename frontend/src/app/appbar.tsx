@@ -1,7 +1,7 @@
 "use client";
 import * as React from 'react';
 import { styled, alpha } from '@mui/material/styles';
-import {AppBar, Box, Toolbar, IconButton, Typography, InputBase, MenuItem, Menu, Button} from '@mui/material';
+import {AppBar, Box, Toolbar, IconButton, Typography, InputBase, MenuItem, Menu, Button, Link} from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import MoreIcon from '@mui/icons-material/MoreVert';
 import { AccountCircle, ShoppingCart } from '@mui/icons-material';
@@ -142,15 +142,15 @@ export default function PrimarySearchAppBar() {
     <Box>
       <AppBar position="static">
         <Toolbar>
-          <Typography
-            variant="h6"
-            noWrap
-            component="div"
+          <Link
+            variant="h5"
+            href="/"
+            underline='none'
             className='font-logofont text-white pb-0.5'
             sx={{ display: { xs: 'none', sm: 'block' } }}
           >
             Read it Again
-          </Typography>
+          </Link>
           <Box sx={{ flexGrow: 1 }} />
           <Search>
             <SearchIconWrapper>
