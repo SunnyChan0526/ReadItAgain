@@ -2,7 +2,7 @@ from fastapi import Header
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query, Depends, HTTPException, status, Security, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from passlib.context import CryptContext
 from datetime import datetime, timedelta, date
 from jose import JWTError, jwt
@@ -164,7 +164,7 @@ async def read_root():
     return "testroot"
 
 
-@app.get("/img")
+@app.get("/img/{type}/{imgfilename}")
 async def get_imgs(type: str, imgfilename: str):
     if (type == 'book'):
         return FileResponse(f"./img/book/{imgfilename}")
@@ -176,29 +176,41 @@ async def get_imgs(type: str, imgfilename: str):
 
 @app.post("/register")
 async def register(member: Member, session: AsyncSession = Depends(get_session)):
-    hashed_password = get_password_hash(member.password)
-    member = Member(
-        memberaccount=member.memberaccount,
-        password=hashed_password,
-        name=member.name,
-        gender=member.gender,
-        phone=member.phone,
-        email=member.email,
-        birthdate=date.fromisoformat(member.birthdate),
-        verified="未認證",
-        usertype="Standard",
-        profilepicture="default.jpg"
-    )
-    session.add(member)
-    await session.commit()
-    await session.refresh(member)
-    stmt = insert(Seller).values(sellerid=member.userid)
-    await session.execute(stmt)
-    await session.commit()
-    stmt = insert(Customer).values(customerid=member.userid)
-    await session.execute(stmt)
-    await session.commit()
-    return member
+    try:
+        hashed_password = get_password_hash(member.password)
+        member = Member(
+            memberaccount=member.memberaccount,
+            password=hashed_password,
+            name=member.name,
+            gender=member.gender,
+            phone=member.phone,
+            email=member.email,
+            birthdate=date.fromisoformat(member.birthdate),
+            verified="未認證",
+            usertype="Standard",
+            profilepicture="default.jpg"
+        )
+        session.add(member)
+        await session.commit()
+        await session.refresh(member)
+        
+        # Insert into Seller table
+        stmt = insert(Seller).values(sellerid=member.userid)
+        await session.execute(stmt)
+        await session.commit()
+        
+        # Insert into Customer table
+        stmt = insert(Customer).values(customerid=member.userid)
+        await session.execute(stmt)
+        await session.commit()
+
+        # Return success response
+        return JSONResponse(status_code=200, content={"success": True})
+
+    except Exception as e:
+        # Handle exception and return error response
+        # You can customize the status code and message as needed
+        return JSONResponse(status_code=400, content={"success": False, "message": str(e)})
 
 
 @app.post("/token", response_model=Token)
@@ -219,7 +231,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     access_token = create_access_token(
         data={"sub": user.memberaccount}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"success":True,"access_token": access_token, "token_type": "bearer"}
 
 # book search
 
@@ -240,9 +252,11 @@ async def search_books_by_order(
     elif sort_by == 'price_descending':
         query = query.order_by(Book.price.desc())
 
-    if min_price is not None and max_price is not None:
-        query = query.where(Book.price >= min_price, Book.price <= max_price)
-
+    if min_price is not None or max_price is not None:
+        if min_price is None:
+            query = query.where(Book.price >= 0, Book.price <= max_price)
+        if max_price is None:
+            query = query.where(Book.price >= min_price)
     books = await session.scalars(query)
 
     book_list = []
@@ -708,7 +722,7 @@ async def get_seller_info(seller_id: int, session: AsyncSession = Depends(get_se
     member = member.first()
 
     seller_info = {
-        "seller_name": member.memberaccount,
+        "seller_name": member.name,
         "seller_avatar": member.profilepicture
     }
     return seller_info
@@ -732,8 +746,11 @@ async def get_seller_store(
     elif sort_by == 'price_descending':
         query = query.order_by(Book.price.desc())
 
-    if min_price is not None and max_price is not None:
-        query = query.where(Book.price >= min_price, Book.price <= max_price)
+    if min_price is not None or max_price is not None:
+        if min_price is None:
+            query = query.where(Book.price >= 0, Book.price <= max_price)
+        if max_price is None:
+            query = query.where(Book.price >= min_price)
 
     books = await session.scalars(query)
 
@@ -745,6 +762,7 @@ async def get_seller_store(
 
         book_detail = {
             "name": book.name,
+            "condition": book.condition,
             "price": book.price,
             "shippinglocation": book.shippinglocation,
             "picturepath": picture_path
