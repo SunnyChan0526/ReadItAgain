@@ -22,6 +22,7 @@ module.exports = {
       },
       fontFamily:{
         'logofont':['Darumadrop One','sans-serif'],
+        'newsfont':['Noto Serif TC','serif'],
       },
     },
   },

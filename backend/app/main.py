@@ -162,7 +162,7 @@ async def read_root():
     return "testroot"
 
 
-@app.get("/img")
+@app.get("/img/{type}/{imgfilename}")
 async def get_imgs(type: str, imgfilename: str):
     if (type == 'book'):
         return FileResponse(f"./img/book/{imgfilename}")
@@ -250,9 +250,11 @@ async def search_books_by_order(
     elif sort_by == 'price_descending':
         query = query.order_by(Book.price.desc())
 
-    if min_price is not None and max_price is not None:
-        query = query.where(Book.price >= min_price, Book.price <= max_price)
-
+    if min_price is not None or max_price is not None:
+        if min_price is None:
+            query = query.where(Book.price >= 0, Book.price <= max_price)
+        if max_price is None:
+            query = query.where(Book.price >= min_price)
     books = await session.scalars(query)
 
     book_list = []
@@ -706,7 +708,7 @@ async def get_seller_info(seller_id: int, session: AsyncSession = Depends(get_se
     member = member.first()
 
     seller_info = {
-        "seller_name": member.memberaccount,
+        "seller_name": member.name,
         "seller_avatar": member.profilepicture
     }
     return seller_info
@@ -730,8 +732,11 @@ async def get_seller_store(
     elif sort_by == 'price_descending':
         query = query.order_by(Book.price.desc())
 
-    if min_price is not None and max_price is not None:
-        query = query.where(Book.price >= min_price, Book.price <= max_price)
+    if min_price is not None or max_price is not None:
+        if min_price is None:
+            query = query.where(Book.price >= 0, Book.price <= max_price)
+        if max_price is None:
+            query = query.where(Book.price >= min_price)
 
     books = await session.scalars(query)
 
@@ -743,6 +748,7 @@ async def get_seller_store(
 
         book_detail = {
             "name": book.name,
+            "condition": book.condition,
             "price": book.price,
             "shippinglocation": book.shippinglocation,
             "picturepath": picture_path

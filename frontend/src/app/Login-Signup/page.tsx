@@ -111,6 +111,7 @@ const LoginForm = ({ toggleButton }: { toggleButton: React.ReactElement }) => {
         if (response.ok) {
           const data = await response.json();
           console.log("Login Successful: ", data);
+          enqueueSnackbar("登入成功.", { variant: 'success' });
           router.push('/');
           // 處理成功登入，例如保存token到本地存儲或狀態
         } else if (response.status === 401) {
@@ -142,7 +143,7 @@ const LoginForm = ({ toggleButton }: { toggleButton: React.ReactElement }) => {
         <Typography component="h1" variant="h5">
           Sign in
         </Typography>
-        <Box component="form" noValidate onSubmit={handleSubmit} sx={{ mt: 1 }}>
+        <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
           <TextField
             margin="normal"
             required
@@ -338,7 +339,7 @@ const RegisterForm = ({ toggleForm, toggleButton }: { toggleForm: () => void, to
           <Typography component="h1" variant="h5">
             Sign up
           </Typography>
-          <Box component="form" noValidate onSubmit={handleSignupSubmit} sx={{ mt: 3 }}>
+          <Box component="form" onSubmit={handleSignupSubmit} sx={{ mt: 3 }}>
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>
                 <TextField
