@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, date
 from jose import JWTError, jwt
 from typing import Optional, List, Dict
 from sqlmodel import select
-from sqlalchemy import update, insert, desc, text
+from sqlalchemy import update, insert, desc, text, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from app.db import init_db, get_session, Book, Picture_List, Shopping_Cart, Cart_List, Member, Seller, Customer, Address_List, Discount, Orders, Applied_List
@@ -1548,13 +1548,12 @@ async def get_book_details_by_seller(
     }
     return book_detail
 
-
 # seller stars
-from sqlalchemy import select, func
-
 @app.get("/seller/stars/{seller_id}")
 async def get_average_stars_of_seller(seller_id: int, session: AsyncSession = Depends(get_session)):
     seller = await session.scalar(select(Seller).where(Seller.sellerid == seller_id))
+    if not seller:
+        raise HTTPException(status_code=404, detail="Seller not found")
     query = select(func.sum(Orders.stars)).where(Orders.sellerid == seller.sellerid)
     total_stars = await session.scalar(query)
     
