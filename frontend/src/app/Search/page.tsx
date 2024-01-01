@@ -13,6 +13,7 @@ import { PriceChange } from '@mui/icons-material';
 import PrimarySearchAppBar from "../appbar";
 
 type Book = {
+  bookid: number;
   name: string;
   condition: string;
   price: number;
@@ -107,7 +108,8 @@ function ReadItAgain() {
             <Grid item xs={4} sm={4} md={3} key={index}>
               <Grow in={animation}>
                 <Card>
-                  <CardActionArea>
+                  <CardActionArea
+                  href={"/Book/"+book.bookid}>
                     <CardMedia
                       component="img"
                       image={"/api/py/img/book/" + book.picturepath}

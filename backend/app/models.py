@@ -34,6 +34,7 @@ class BookInfo(BaseModel):
     picturepath: str
     
 class BookSearch(BaseModel):
+    bookid:int
     name: str
     condition: str
     price: int
@@ -41,15 +42,8 @@ class BookSearch(BaseModel):
     picturepath: str
 
 class BookDetail(BaseModel):
-    sellerid: int
-    isbn: str
-    name: str
-    condition: str
-    price: int
-    shippinglocation: str
-    description: str
-    category: str
-    bookpictures: list
+    sellerinfo: dict
+    bookinfo: dict
 
 # ShoppingCart
 class ShoppingCartList(BaseModel):

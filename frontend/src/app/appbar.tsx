@@ -222,7 +222,7 @@ export default function PrimarySearchAppBar() {
               variant="h5"
               href="/"
               underline='none'
-              className='font-logofont text-white pb-0.5'
+              className='font-logofont text-white pb-1'
               sx={{ display: { xs: 'none', sm: 'block' } }}
             >
               Read it Again

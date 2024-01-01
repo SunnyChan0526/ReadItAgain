@@ -18,6 +18,7 @@ type SellerInfo = {
 }
 
 type Book = {
+    bookid: string;
     name: string;
     condition: string;
     price: number;
@@ -127,7 +128,8 @@ function ReadItAgain({ params }: { params: { Sellerid: string } }) {
                         <Grid item xs={4} sm={4} md={3} key={index}>
                             <Grow in={animation}>
                                 <Card>
-                                    <CardActionArea>
+                                    <CardActionArea
+                                    href={"/Book/"+book.bookid}>
                                         <CardMedia
                                             component="img"
                                             image={"/api/py/img/book/" + book.picturepath}
