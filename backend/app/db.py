@@ -74,6 +74,7 @@ class Orders(SQLModel, table=True):
     totalamount: int
     totalbookcount: int
     comment: Optional[str] = Field(max_length=500)
+    shippingmethod: Optional[str] = Field(max_length=20)
     stars: Optional[int]
 
     # Relationships
