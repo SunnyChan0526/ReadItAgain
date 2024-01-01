@@ -97,12 +97,13 @@ CREATE TABLE ORDERS (
     TotalAmount INTEGER NOT NULL,
     TotalBookCount INTEGER NOT NULL,
     Comment VARCHAR(500),
+    ShippingMethod VARCHAR(20),
     Stars INTEGER
 );
 
 -- Insert fake data into ORDER table
-INSERT INTO ORDERS (SellerID, CustomerID, OrderStatus, CancellationReason, Time, TotalAmount, TotalBookCount, Comment, Stars) VALUES
-(2, 1, 'Completed', null, '2021-01-02 15:00:00', 400, 2, '人很NICE!', 5);
+INSERT INTO ORDERS (SellerID, CustomerID, OrderStatus, CancellationReason, Time, TotalAmount, TotalBookCount, Comment, ShippingMethod, Stars) VALUES
+(2, 1, 'Completed', null, '2021-01-02 15:00:00', 400, 2, '人很NICE!', '全家', 5);
 
 -- Create DISCOUNT table
 CREATE TABLE DISCOUNT (

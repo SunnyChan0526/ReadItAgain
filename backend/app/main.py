@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, date
 from jose import JWTError, jwt
 from typing import Optional, List, Dict
 from sqlmodel import select
-from sqlalchemy import update, insert, desc, text
+from sqlalchemy import update, insert, desc, text, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from app.db import (
@@ -868,14 +868,9 @@ async def order_create(
         seller_id, shipping_options, selected_coupons, token, session
     )
     user = await get_current_user_data(token, session)
-    stmt = insert(Orders).values(
-        sellerid=seller_id,
-        customerid=user.userid,
-        orderstatus="To ship",
-        time=datetime.now(),
-        totalamount=checkout_data.total_amount,
-        totalbookcount=checkout_data.total_book_count,
-    )
+    stmt = insert(Orders).values(sellerid=seller_id, customerid=user.userid, orderstatus='To ship',
+                                 time=datetime.now(), totalamount=checkout_data.total_amount, totalbookcount=checkout_data.total_book_count, shippingmethod=shipping_options
+                                 )
     await session.execute(stmt)
     await session.commit()
     orders = await session.scalars(select(Orders).order_by(desc(Orders.orderid)))
@@ -1053,6 +1048,7 @@ async def view_order_list_customer(
             "books": book_details,
             "totalbookcount": order.totalbookcount,
             "totalamount": order.totalamount,
+            "shippingmethod": order.shippingmethod
         }
         orderlist.append(order_list)
     return orderlist
@@ -1091,6 +1087,7 @@ async def view_order_list_seller(
             "books": book_details,
             "totalbookcount": order.totalbookcount,
             "totalamount": order.totalamount,
+            "shippingmethod": order.shippingmethod,
         }
         orderlist.append(order_list)
     return orderlist
@@ -1154,7 +1151,8 @@ async def get_order_details(
         "totalbookcount": order.totalbookcount,
         "totalamount": order.totalamount,
         "orderstatus": order.orderstatus,
-        "time": order.time,
+        "shippingmethod": order.shippingmethod,
+        "time": order.time
     }
     return order_detail
 
@@ -1915,3 +1913,19 @@ async def get_book_details_by_seller(
         "bookpictures": [p.picturepath for p in pictures],
     }
     return book_detail
+
+# seller stars
+@app.get("/seller/stars/{seller_id}")
+async def get_average_stars_of_seller(seller_id: int, session: AsyncSession = Depends(get_session)):
+    seller = await session.scalar(select(Seller).where(Seller.sellerid == seller_id))
+    if not seller:
+        raise HTTPException(status_code=404, detail="Seller not found")
+    query = select(func.sum(Orders.stars)).where(Orders.sellerid == seller.sellerid)
+    total_stars = await session.scalar(query)
+    
+    count = await session.scalar(select(func.count(Orders.stars)).where(Orders.sellerid == seller.sellerid))
+    if count and total_stars is not None:
+        average_stars = total_stars / count
+    else:
+        average_stars = 0  
+    return {"average_stars": average_stars}
