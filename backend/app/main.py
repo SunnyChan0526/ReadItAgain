@@ -1,5 +1,6 @@
-from fastapi import Header
+from fastapi import Cookie
 from contextlib import asynccontextmanager
+from typing import Annotated
 from fastapi import (
     FastAPI,
     Query,
@@ -183,7 +184,7 @@ async def checkout(
     cart = await show_cart(token, session)
     books = []
     for i in cart[seller_id]:
-        book = ShoppingCartList(name=i.name, picturepath=i.picturepath, price=i.price)
+        book = ShoppingCartList(bookid=i.bookid,name=i.name, picturepath=i.picturepath,shipping=i.shippinglocation, price=i.price, condition=i.condition)
         books.append(book)
     books_total_price = sum(i.price for i in books)
     if shipping_options == "7-ELEVEN" or shipping_options == "全家":
@@ -191,6 +192,8 @@ async def checkout(
     elif shipping_options == "快遞":
         shipping_fee = 120
     elif shipping_options == "面交":
+        shipping_fee = 0
+    elif shipping_options == "未選擇運送方式":
         shipping_fee = 0
     else:
         raise HTTPException(status_code=404, detail="unvalid shipping option")
@@ -376,6 +379,7 @@ async def get_book_details(book_id: int, session: AsyncSession = Depends(get_ses
     seller_info = await get_seller_info(book.sellerid, session)
     book = {
         "sellerid": book.sellerid,
+        "bookid": book.bookid,
         "isbn": book.isbn,
         "name": book.name,
         "condition": book.condition,
@@ -395,8 +399,8 @@ async def get_book_details(book_id: int, session: AsyncSession = Depends(get_ses
 
 
 @app.get("/show-cart/seller")
-async def seller_in_cart(token: str, session: AsyncSession = Depends(get_session)):
-    cart = await show_cart(token, session)
+async def seller_in_cart(accessToken: Annotated[str | None, Cookie()] = None, session: AsyncSession = Depends(get_session)):
+    cart = await show_cart(accessToken, session)
     seller_id = list(cart.keys())
     seller_name_list = []
     for i in seller_id:
@@ -404,26 +408,25 @@ async def seller_in_cart(token: str, session: AsyncSession = Depends(get_session
             select(Member.name).where(Member.userid == i)
         )
         seller_name_list.append(seller_name.first())
-    return seller_name_list
+    return {'seller_id_list':seller_id,'seller_name_list':seller_name_list}
 
 
 @app.get("/show-cart/books", response_model=list[ShoppingCartList])
 async def books_in_cart(
-    seller_id: int, token: str, session: AsyncSession = Depends(get_session)
+    seller_id: int, accessToken: Annotated[str | None, Cookie()] = None, session: AsyncSession = Depends(get_session)
 ):
-    cart = await show_cart(token, session)
+    cart = await show_cart(accessToken, session)
     result = []
     for i in cart[seller_id]:
-        book = ShoppingCartList(name=i.name, picturepath=i.picturepath, price=i.price)
+        book = ShoppingCartList(bookid=i.bookid, name=i.name, picturepath=i.picturepath, shipping=i.shippinglocation, price=i.price, condition=i.condition)
         result.append(book)
     return result
 
 
 @app.post("/add-to-cart/{book_id}")
-async def add_to_cart(
-    token: str, book_id: int, session: AsyncSession = Depends(get_session)
+async def add_to_cart(book_id: int, accessToken: Annotated[str | None, Cookie()] = None, session: AsyncSession = Depends(get_session)
 ):
-    user = await get_current_user_data(token, session)
+    user = await get_current_user_data(accessToken, session)
 
     shoppingCart = await session.scalars(
         select(Shopping_Cart).where(Shopping_Cart.customerid == user.userid)
@@ -464,10 +467,9 @@ async def add_to_cart(
 
 
 @app.delete("/remove-from-cart/{book_id}")
-async def remove_from_cart(
-    token: str, book_id: int, session: AsyncSession = Depends(get_session)
+async def remove_from_cart(book_id: int, accessToken: Annotated[str | None, Cookie()] = None, session: AsyncSession = Depends(get_session)
 ):
-    user = await get_current_user_data(token, session)
+    user = await get_current_user_data(accessToken, session)
 
     shoppingCart = await session.scalars(
         select(Shopping_Cart).where(Shopping_Cart.customerid == user.userid)
@@ -753,14 +755,14 @@ async def remove_from_address(
 # , response_model=Dict[str, List[DiscountInfo]]
 @app.get("/checkout/select-coupon/{seller_id}")
 async def select_coupon(
-    token: str,
     seller_id: int,
     # totalcost: int,
     # book_ids: list[int] = Query(None, description='bookid in shopping cart'),
+    accessToken: Annotated[str | None, Cookie()] = None,
     session: AsyncSession = Depends(get_session),
 ):
     rst = {"special event": list(), "seasoning": list(), "shipping fee": list()}
-    cart = await show_cart(token, session)
+    cart = await show_cart(accessToken, session)
     book_rows = cart[seller_id]
 
     # 找出所有購物車book的row、所有買家擁有的coupon、購物車中可以applied的優惠券的code
@@ -772,7 +774,7 @@ async def select_coupon(
     for book in book_rows:
         totalcost += book.price
         if book.discountcode:
-            special_event_discountcode_list.append(book.discountcode)
+            special_event_discountcode_list.append({"discountcode": book.discountcode, "bookid": book.bookid})
         if book.sellerid != seller_id:
             raise HTTPException(
                 status_code=400,
@@ -799,8 +801,11 @@ async def select_coupon(
             isable=True,
         )
         if coupon.type == "special event":
-            if coupon.discountcode in special_event_discountcode_list:
-                rst["special event"].append(info)
+            for event_discount in special_event_discountcode_list:
+                if coupon.discountcode == event_discount["discountcode"]:
+                    info_with_book = info.model_dump()
+                    info_with_book["bookid"] = event_discount["bookid"]
+                    rst["special event"].append(info_with_book)
         elif coupon.type == "seasoning":
             info.isable = (
                 True if totalcost >= coupon.minimumamountfordiscount else False
@@ -820,10 +825,10 @@ async def checkout_interface(
     seller_id: int,
     shipping_options: str,
     selected_coupons: list[DiscountInfo],
-    token: str,
+    accessToken: Annotated[str | None, Cookie()] = None,
     session: AsyncSession = Depends(get_session),
 ):
-    return await checkout(seller_id, shipping_options, selected_coupons, token, session)
+    return await checkout(seller_id, shipping_options, selected_coupons, accessToken, session)
 
 
 @app.get(
@@ -831,9 +836,9 @@ async def checkout_interface(
     response_model=Dict[str, List[ShippingMethod]],
 )
 async def checkout_discount(
-    seller_id: int, token: str, session: AsyncSession = Depends(get_session)
+    seller_id: int, accessToken: Annotated[str | None, Cookie()] = None, session: AsyncSession = Depends(get_session)
 ):
-    user = await get_current_user_data(token, session)
+    user = await get_current_user_data(accessToken, session)
     sql_query = f"""
                     select ADDRESS_LIST.ShippingOption, ADDRESS_LIST.Address, ADDRESS_LIST.DefaultAddress
                     from ADDRESS_LIST
@@ -861,13 +866,13 @@ async def order_create(
     seller_id: int,
     shipping_options: str,
     selected_coupons: list[DiscountInfo],
-    token: str,
+    accessToken: Annotated[str | None, Cookie()] = None,
     session: AsyncSession = Depends(get_session),
 ):
     checkout_data = await checkout(
-        seller_id, shipping_options, selected_coupons, token, session
+        seller_id, shipping_options, selected_coupons, accessToken, session
     )
-    user = await get_current_user_data(token, session)
+    user = await get_current_user_data(accessToken, session)
     stmt = insert(Orders).values(sellerid=seller_id, customerid=user.userid, orderstatus='To ship',
                                  time=datetime.now(), totalamount=checkout_data.total_amount, totalbookcount=checkout_data.total_book_count, shippingmethod=shipping_options
                                  )
@@ -876,7 +881,7 @@ async def order_create(
     orders = await session.scalars(select(Orders).order_by(desc(Orders.orderid)))
     orders = orders.first()
 
-    cart = await show_cart(token, session)
+    cart = await show_cart(accessToken, session)
     book_rows = cart[seller_id]
     for book in book_rows:
         sql_update = f"""
@@ -893,6 +898,13 @@ async def order_create(
                         where BookID = {book.bookid}
                       """
         await session.execute(text(sql_update))
+        await session.commit()
+    for book in book_rows:
+        sql_delete = f"""
+                        delete from cart_list
+                        where BookID = {book.bookid}
+                      """
+        await session.execute(text(sql_delete))
         await session.commit()
     for coupon in selected_coupons:
         stmt = insert(Applied_List).values(

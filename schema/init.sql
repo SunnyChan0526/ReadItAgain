@@ -159,14 +159,14 @@ INSERT INTO BOOK (SellerID, OrderID, DiscountCode, ISBN, ShippingLocation , Name
 (2, 1, null, '978-3-16-148411-8', '高雄市', '微積分', '二手', 200, '北科大一微積分', 'Math', 'sold'),
 (3, null, null, '978-3-16-148411-8', '高雄市', '小王子', '二手', 200, '一本經典的兒童文學作品。', 'Children', 'on sale');
 
--- Create SHOPPING_CART table
+-- Create PICTURE_LIST table
 CREATE TABLE PICTURE_LIST (
     PictureID SERIAL PRIMARY KEY,
     BookID INTEGER NOT NULL REFERENCES BOOK(BookID) ON UPDATE CASCADE ON DELETE CASCADE,
     PicturePath VARCHAR(200) NOT NULL
 );
 
--- Insert fake data into SHOPPING_CART table
+-- Insert fake data into PICTURE_LIST table
 INSERT INTO PICTURE_LIST (BookID, PicturePath) VALUES
 (1, 'book01.jpg'),
 (2, 'book02_01.jpg'),
@@ -219,6 +219,7 @@ INSERT INTO CART_LIST VALUES
 (1, 1),
 (1, 2);
 
+-- Create ADDRESS_LIST TABLE
 CREATE TABLE ADDRESS_LIST (
     AddressID SERIAL PRIMARY KEY,
     CustomerID INTEGER REFERENCES CUSTOMER(CustomerID) ON UPDATE CASCADE ON DELETE CASCADE,
@@ -227,18 +228,20 @@ CREATE TABLE ADDRESS_LIST (
     DefaultAddress BOOLEAN
 );
 
+-- Insert fake data into ADDRESS_LIST table
 INSERT INTO ADDRESS_LIST (CustomerID, Address, ShippingOption, DefaultAddress) VALUES 
-(1, '67169 台中和街巷4號9樓', 'home', true),
+(1, '67169 台中和街巷4號9樓', '快遞', true),
 (1, '台北市大安區基隆路二段142之1號及142之2號', '7-ELEVEN', true),
 (1, '台北市信義區吳興街156巷2弄2號4號1樓', '7-ELEVEN', false);
 
-
+-- Create SHIPPINGMETHOD_LIST TABLE
 CREATE TABLE SHIPPINGMETHOD_LIST (
     ShippingMethodID SERIAL PRIMARY KEY,
     SellerID INTEGER REFERENCES SELLER(SellerID) ON UPDATE CASCADE ON DELETE CASCADE,
     ShippingMethod VARCHAR(20)
 );
 
+-- Insert fake data into SHIPPINGMETHOD_LIST table
 INSERT INTO SHIPPINGMETHOD_LIST(SellerID, ShippingMethod) VALUES
 (1, '7-ELEVEN'),
 (2, '7-ELEVEN'),

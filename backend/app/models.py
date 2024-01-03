@@ -47,10 +47,12 @@ class BookDetail(BaseModel):
 
 # ShoppingCart
 class ShoppingCartList(BaseModel):
+    bookid: int
     name: str
     picturepath: str
+    shipping: str
     price: int
-
+    condition: str
 
 # Address
 class Address(BaseModel):

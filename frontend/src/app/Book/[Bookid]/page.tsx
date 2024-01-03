@@ -17,6 +17,7 @@ type SellerInfo = {
 
 type Bookdetail = {
     sellerid: string,
+    bookid: number,
     isbn: string,
     name: string,
     condition: string,
@@ -34,6 +35,7 @@ interface ApiResponse {
 function ReadItAgain({ params }: { params: { Bookid: string } }) {
     const [books, setBooks] = useState<Bookdetail>({
         sellerid: '',
+        bookid: -1,
         isbn: '',
         name: '',
         condition: '',
@@ -47,6 +49,8 @@ function ReadItAgain({ params }: { params: { Bookid: string } }) {
         seller_name: '',
         seller_avatar: '',
     });
+
+    const [parentState, setParentState] = React.useState(false);
 
     const handleImageClick = (image: React.SetStateAction<string>) => {
         setSelectedImage(image);
@@ -64,9 +68,29 @@ function ReadItAgain({ params }: { params: { Bookid: string } }) {
             });
     }, [params.Bookid]);
     const [selectedImage, setSelectedImage] = useState('');
+    const handleAddCartClick = async (bookId: number) => {
+        try {
+          const response = await fetch(`/api/py/add-to-cart/${bookId}`, {
+            method: 'POST',
+            credentials: 'include'
+          });
+      
+          if (!response.ok) {
+            throw new Error(`Error adding item to cart, status ${response.status}`);
+          }
+      
+          // Handle response data if necessary
+          const data = await response.json();
+          console.log('Item added to cart:', data);
+          setParentState(!parentState);
+      
+        } catch (error) {
+          console.error('Failed to add item to cart:', error);
+        }
+      };
     return (
         <main className="overflow-x-hidden min-h-screen bg-white flex flex-col">
-            <PrimarySearchAppBar></PrimarySearchAppBar>
+            <PrimarySearchAppBar parentState={parentState}></PrimarySearchAppBar>
             <Grid container spacing={2} columns={{ xs: 4, sm: 8, md: 12 }} className="px-24 mt-4">
                 {/* 書本圖廊 */}
                 <Grid item xs={12} sm={8} md={4}>
@@ -148,7 +172,7 @@ function ReadItAgain({ params }: { params: { Bookid: string } }) {
                             <Typography variant="h5" className="font-newsfont">{"NT $" + books.price}</Typography>
                         </Grid>
                         <Grid item>
-                            <Button variant="contained" startIcon={<AddShoppingCartIcon></AddShoppingCartIcon>}>加入購物車</Button>
+                            <Button variant="contained" startIcon={<AddShoppingCartIcon></AddShoppingCartIcon>} className="bg-tan-500" onClick={()=> handleAddCartClick(books.bookid)}>加入購物車</Button>
                         </Grid>
                     </Grid>
                     
