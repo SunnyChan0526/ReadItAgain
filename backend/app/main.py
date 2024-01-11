@@ -51,6 +51,8 @@ from app.models import (
     ShippingMethod,
     CouponCreate,
     CouponEdit,
+    ProfileEdit,
+    ChangePass,
 )
 from .config import settings
 from datetime import datetime
@@ -117,6 +119,7 @@ async def get_current_user_data(
     token = await get_current_user(token)
     user = await session.scalars(select(Member).where(Member.memberaccount == token))
     user = user.first()
+    await session.refresh(user)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
@@ -514,18 +517,16 @@ async def remove_from_cart(book_id: int, accessToken: Annotated[str | None, Cook
 # my account
 
 
-@app.post("/change_password")
+@app.patch("/change_password")
 async def change_password(
-    token: str,
-    origin_password: str = Query(None),
-    new_password: str = Query(None),
-    new_password_check: str = Query(None),
+    changepass:ChangePass,
+    accessToken: Annotated[str | None, Cookie()] = None,
     session: AsyncSession = Depends(get_session),
 ):
-    user = await get_current_user_data(token, session)
-    if verify_password(origin_password, user.password):
-        if new_password == new_password_check:
-            hashed_password = get_password_hash(new_password)
+    user = await get_current_user_data(accessToken, session)
+    if verify_password(changepass.origin_password, user.password):
+        if changepass.new_password == changepass.new_password_check:
+            hashed_password = get_password_hash(changepass.new_password)
             stmt = (
                 update(Member)
                 .where(Member.userid == user.userid)
@@ -533,10 +534,7 @@ async def change_password(
             )
             await session.execute(stmt)
             await session.commit()
-            return {
-                "OK! origin password": origin_password,
-                "new password": new_password,
-            }
+            return "change success"
         else:
             return "The new passwords entered are different"
     else:
@@ -547,11 +545,13 @@ async def change_password(
 
 
 @app.get("/profile/view", response_model=Profile)
-async def view_profile(token: str, session: AsyncSession = Depends(get_session)):
-    user = await get_current_user_data(token, session)
+async def view_profile(accessToken: Annotated[str | None, Cookie()] = None, session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(accessToken, session)
+    await session.refresh(user)
     return Profile(
         userid=user.userid,
-        name=user.memberaccount,
+        name=user.name,
+        account=user.memberaccount,
         email=user.email,
         phone=user.phone,
         gender=user.gender,
@@ -562,44 +562,40 @@ async def view_profile(token: str, session: AsyncSession = Depends(get_session))
 
 @app.patch("/profile/edit")
 async def edit_profile(
-    token: str,
+    profile_data: ProfileEdit,
     session: AsyncSession = Depends(get_session),
-    name_input: str = Query(None),
-    email_input: str = Query(None),
-    phone_input: str = Query(None),
-    gender_input: str = Query(None),
-    birthdate_input: date = Query(None),
+    accessToken: Annotated[str | None, Cookie()] = None
 ):
-    user = await get_current_user_data(token, session)
-    if name_input:
+    user = await get_current_user_data(accessToken, session)
+    if profile_data.name_input:
         stmt = (
             update(Member)
             .where(Member.userid == user.userid)
-            .values(memberaccount=name_input)
+            .values(name=profile_data.name_input)
         )
         await session.execute(stmt)
-    if email_input:
+    if profile_data.email_input:
         stmt = (
-            update(Member).where(Member.userid == user.userid).values(email=email_input)
+            update(Member).where(Member.userid == user.userid).values(email=profile_data.email_input)
         )
         await session.execute(stmt)
-    if phone_input:
+    if profile_data.phone_input:
         stmt = (
-            update(Member).where(Member.userid == user.userid).values(phone=phone_input)
+            update(Member).where(Member.userid == user.userid).values(phone=profile_data.phone_input)
         )
         await session.execute(stmt)
-    if gender_input:
-        stmt = (
-            update(Member)
-            .where(Member.userid == user.userid)
-            .values(gender=gender_input)
-        )
-        await session.execute(stmt)
-    if birthdate_input:
+    if profile_data.gender_input:
         stmt = (
             update(Member)
             .where(Member.userid == user.userid)
-            .values(birthdate=birthdate_input)
+            .values(gender=profile_data.gender_input)
+        )
+        await session.execute(stmt)
+    if profile_data.birthdate_input:
+        stmt = (
+            update(Member)
+            .where(Member.userid == user.userid)
+            .values(birthdate=profile_data.birthdate_input)
         )
         await session.execute(stmt)
 
@@ -609,21 +605,23 @@ async def edit_profile(
 
 @app.post("/profile/upload_avatar")
 async def upload_avatar(
-    token: str, avatar: UploadFile, session: AsyncSession = Depends(get_session)
+    avatar: UploadFile,accessToken: Annotated[str | None, Cookie()] = None, session: AsyncSession = Depends(get_session)
 ):
-    user = await get_current_user_data(token, session)
+    user = await get_current_user_data(accessToken, session)
 
     if avatar.content_type in ("image/jpg", "image/jpeg", "image/png"):
         img_type = avatar.content_type.split("/")[1]
         file_location = f"./img/avatar/{user.memberaccount}.{img_type}"
-        with open(file_location, "wb") as file_object:
-            shutil.copyfileobj(avatar.file, file_object)
-
+        
         # 更新用戶的 ProfilePicture
         if user.profilepicture != "default.jpg":
             old_file_location = f"./img/avatar/{user.profilepicture}"
             if os.path.exists(old_file_location):
                 os.remove(old_file_location)
+
+        with open(file_location, "wb") as file_object:
+            shutil.copyfileobj(avatar.file, file_object)
+
         user.profilepicture = f"{user.memberaccount}.{img_type}"
         await session.commit()
     else:
@@ -639,8 +637,8 @@ async def upload_avatar(
 
 
 @app.get("/address/show", response_model=Dict[str, List[Address]])
-async def show_address(token: str, session: AsyncSession = Depends(get_session)):
-    user = await get_current_user_data(token, session)
+async def show_address(accessToken: Annotated[str | None, Cookie()] = None, session: AsyncSession = Depends(get_session)):
+    user = await get_current_user_data(accessToken, session)
     addresses = await session.scalars(
         select(Address_List).where(Address_List.customerid == user.userid)
     )
@@ -666,10 +664,18 @@ async def show_address(token: str, session: AsyncSession = Depends(get_session))
 
 @app.post("/address/create", response_model=Address_List)
 async def create_address(
-    token: str, address: AddressCreate, session: AsyncSession = Depends(get_session)
+    address: AddressCreate,accessToken: Annotated[str | None, Cookie()] = None,  session: AsyncSession = Depends(get_session)
 ):
-    user = await get_current_user_data(token, session)
-
+    user = await get_current_user_data(accessToken, session)
+    # 如果 address.defaultaddress 為 true，則更新其他地址
+    if address.defaultaddress:
+        # 查詢該用戶的所有地址並將 defaultaddress 設置為 false
+        await session.execute(
+            update(Address_List)
+            .where(Address_List.customerid == user.userid)
+            .where(Address_List.shippingoption == address.shippingoption)
+            .values(defaultaddress=False)
+        )
     # 創建 Address 物件
     new_address = Address_List(customerid=user.userid, **address.dict())
 
@@ -682,12 +688,21 @@ async def create_address(
 
 @app.patch("/address/edit/{address_id}")
 async def edit_address(
-    token: str,
     address: AddressEdit,
     address_id: int,
+    accessToken: Annotated[str | None, Cookie()] = None,
     session: AsyncSession = Depends(get_session),
 ):
-    user = await get_current_user_data(token, session)
+    user = await get_current_user_data(accessToken, session)
+    # 如果 address.defaultaddress 為 true，則更新其他地址
+    if address.defaultaddress:
+        # 查詢該用戶的所有地址並將 defaultaddress 設置為 false
+        await session.execute(
+            update(Address_List)
+            .where(Address_List.customerid == user.userid)
+            .where(Address_List.shippingoption == address.shippingoption)
+            .values(defaultaddress=False)
+        )
     if address.address:
         stmt = (
             update(Address_List)
@@ -725,9 +740,9 @@ async def edit_address(
 
 @app.delete("/address/delete/{address_id}")
 async def remove_from_address(
-    token: str, address_id: int, session: AsyncSession = Depends(get_session)
+    address_id: int,accessToken: Annotated[str | None, Cookie()] = None, session: AsyncSession = Depends(get_session)
 ):
-    user = await get_current_user_data(token, session)
+    user = await get_current_user_data(accessToken, session)
     address = await session.scalars(
         select(Address_List).where(
             Address_List.customerid == user.userid, Address_List.addressid == address_id
@@ -1029,13 +1044,13 @@ async def get_order_book_details(session: AsyncSession, order_id: int):
 
 @app.get("/customer/orders")
 async def view_order_list_customer(
-    token: str,
     order_status: Optional[str] = Query(description="order status"),
     keyword_type: Optional[str] = Query(None, description="keyword type"),
     keyword: Optional[str] = Query(None, description="keyword"),
+    accessToken: Annotated[str | None, Cookie()] = None,
     session: AsyncSession = Depends(get_session),
 ):
-    customer = await get_current_customer(token, session)
+    customer = await get_current_customer(accessToken, session)
 
     orders = await session.scalars(
         select(Orders).where(Orders.customerid == customer.customerid)
@@ -1052,11 +1067,15 @@ async def view_order_list_customer(
             book_names = [book["bookname"] for book in book_details]
             if keyword not in book_names:
                 continue
-
+        seller = await session.scalars(
+        select(Member).where(Member.userid == order.sellerid)
+        )
+        seller = seller.first()
         order_list = {
             "orderid": order.orderid,
             "orderstatus": order.orderstatus,
             "sellerid": order.sellerid,
+            "sellername": seller.name,
             "books": book_details,
             "totalbookcount": order.totalbookcount,
             "totalamount": order.totalamount,
@@ -1206,6 +1225,21 @@ async def view_comment_for_seller(
 
     return {"comment": comment, "stars": stars}
 
+@app.get("/customer/orders/{order_id}/comment")
+async def view_comment_for_seller(
+    order_id: int, session: AsyncSession = Depends(get_session)
+):
+    comment = await session.scalar(
+        select(Orders.comment).where(
+            Orders.orderid == order_id
+        )
+    )
+    stars = await session.scalar(select(Orders.stars).where(Orders.orderid == order_id))
+
+    if comment is None and stars is None:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    return {"comment": comment, "stars": stars}
 
 @app.post("/update_orders_status/{person}/{order_id}")
 async def update_orders(
@@ -1341,13 +1375,13 @@ async def cancel_orders(
 
 @app.post("/comment/{order_id}")
 async def customer_comment(
-    token: str,
     order_id: int,
     stars_input: int,
     comment_input: str,
+    accessToken: Annotated[str | None, Cookie()] = None,
     session: AsyncSession = Depends(get_session),
 ):
-    customer = await get_current_customer(token, session)
+    customer = await get_current_customer(accessToken, session)
     order = await session.scalars(
         select(Orders).where(
             Orders.orderid == order_id, Orders.customerid == customer.customerid

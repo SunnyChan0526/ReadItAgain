@@ -490,7 +490,7 @@ export default function PrimarySearchAppBar({ parentState }:ChildComponentProps)
                 edge="end"
                 aria-label="account of current user"
                 aria-haspopup="true"
-                href='/MyProfile'
+                href='/MyPage'
                 style={{ color: "white" }}
               >
                 <AccountCircle />

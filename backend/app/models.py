@@ -11,12 +11,20 @@ class Token(BaseModel):
 class Profile(BaseModel):
     userid: int
     name: str
+    account: str
     email: str
     phone: str
     gender: str
     birthdate: date
     profilepicture: str
-    
+
+class ProfileEdit(BaseModel):
+    name_input: Optional[str] = None
+    email_input: Optional[str] = None
+    phone_input: Optional[str] = None
+    gender_input: Optional[str] = None
+    birthdate_input: Optional[date] = None
+
 # Book
 class BookInfo(BaseModel):
     bookid: Optional[int] 
@@ -126,3 +134,7 @@ class CouponEdit(BaseModel):
     eventtag: Optional[str] = Query(None)
     minimumamountfordiscount: Optional[int] = Query(None)
 
+class ChangePass(BaseModel):
+    origin_password: str = Query(None)
+    new_password: str = Query(None)
+    new_password_check: str = Query(None)
