@@ -54,6 +54,7 @@ from app.models import (
     ProfileEdit,
     ChangePass,
     CommentInput,
+    Cancel_Seller,
 )
 from .config import settings
 from datetime import datetime
@@ -1113,11 +1114,17 @@ async def view_order_list_seller(
             book_names = [book["bookname"] for book in book_details]
             if keyword not in book_names:
                 continue
-
+        customer = await session.scalars(
+        select(Member).where(Member.userid == order.customerid)
+        )
+        customer = customer.first()
         order_list = {
             "orderid": order.orderid,
             "orderstatus": order.orderstatus,
+            "ordertime": order.time,
+            "ordercancelreason": order.cancellationreason,
             "customerid": order.customerid,
+            "customername":customer.name,
             "books": book_details,
             "totalbookcount": order.totalbookcount,
             "totalamount": order.totalamount,
@@ -1358,21 +1365,20 @@ async def cancel_orders_pr(
 async def cancel_orders(
     person: str,
     order_id: int,
-    reason: str,
-    is_accepted: bool,
+    cancel_model:Cancel_Seller,
     accessToken: Annotated[str | None, Cookie()] = None,
     session: AsyncSession = Depends(get_session),
 ):
     order = await get_order(person, order_id, accessToken, session)
     if order:
-        if is_accepted:
+        if cancel_model.is_accepted:
             order.orderstatus = "Cancelled"
-            order.cancellationreason = reason
+            order.cancellationreason = cancel_model.reason
             await session.commit()
             return {"message": f"Order {order_id} cancelled successfully."}
         else:
             order.orderstatus = "CancelDenied"
-            order.cancellationreason = reason
+            order.cancellationreason = cancel_model.reason
             return {"message": f"Order {order_id} cancellation request denied."}
     else:
         raise HTTPException(status_code=404, detail="Order not found")

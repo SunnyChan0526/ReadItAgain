@@ -143,3 +143,7 @@ class CommentInput(BaseModel):
     order_id: int
     stars_input: int
     comment_input: str
+
+class Cancel_Seller(BaseModel):
+    is_accepted:bool
+    reason:str
