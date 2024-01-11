@@ -138,3 +138,8 @@ class ChangePass(BaseModel):
     origin_password: str = Query(None)
     new_password: str = Query(None)
     new_password_check: str = Query(None)
+
+class CommentInput(BaseModel):
+    order_id: int
+    stars_input: int
+    comment_input: str

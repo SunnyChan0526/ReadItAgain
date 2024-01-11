@@ -5,7 +5,7 @@ import '@fontsource/roboto/300.css';
 import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
 import '@fontsource/roboto/700.css';
-import { Container, Box, List, ListItem, ListItemIcon, ListItemText, ListItemButton, Divider,Rating, Typography, TextField, Button, FormControl, FormLabel, FormControlLabel, Radio, RadioGroup, Grid, Avatar, Grow, Stack, Card, CardMedia, CardContent, Dialog, DialogTitle, DialogContent, DialogActions, Checkbox, IconButton, InputAdornment, Breadcrumbs } from '@mui/material';
+import { Container, Box, List, ListItem, ListItemIcon, ListItemText, ListItemButton, Divider, Rating, Typography, TextField, Button, FormControl, FormLabel, FormControlLabel, Radio, RadioGroup, Grid, Avatar, Grow, Stack, Card, CardMedia, CardContent, Dialog, DialogTitle, DialogContent, DialogActions, Checkbox, IconButton, InputAdornment, Breadcrumbs } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import dayjs, { Dayjs } from 'dayjs';
 import AccountBoxIcon from '@mui/icons-material/AccountBox';
@@ -51,6 +51,8 @@ interface Book {
 interface Order {
     orderid: number;
     orderstatus: string;
+    ordertime: string;
+    ordercancelreason: string;
     sellerid: number;
     sellername: string;
     books: Book[];
@@ -870,48 +872,80 @@ const MyOrdersContent = ({ setActiveComponent }: { setActiveComponent: (value: s
         fetchData();
     }, []);
     const [orders, setOrders] = React.useState<Order[]>([]);
+    const fetchOrders = async () => {
+        try {
+            const response = await fetch('/api/py/customer/orders?order_status=All', {
+                method: 'GET',
+                credentials: 'include',
+            });
 
-    React.useEffect(() => {
-        const fetchOrders = async () => {
-            try {
-                const response = await fetch('/api/py/customer/orders?order_status=All', {
-                    method: 'GET',
-                    credentials: 'include',  // 确保包含 cookies
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const data: Order[] = await response.json();
-                setOrders(data);
-            } catch (error) {
-                console.error("Could not fetch orders", error);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
-        };
 
+            const data: Order[] = await response.json();
+            setOrders(data);
+        } catch (error) {
+            console.error("Could not fetch orders", error);
+        }
+    };
+    React.useEffect(() => {
         fetchOrders();
     }, []);
     const getOrderButton = (orderStatus: string, order_id: number) => {
         switch (orderStatus) {
-            case "Unpaid":
+            case "To ship":
                 return (
                     <Button
                         variant="outlined"
                         startIcon={<CancelIcon />}
                         aria-label="cancel order"
                         className="span"
+                        onClick={() => handleOpenCancelDialog(order_id)}
                     >
                         取消訂單
                     </Button>
                 );
-            case "To ship":
+            case "Cancelling":
+                return (
+                    <Button
+                        variant="outlined"
+                        startIcon={<CancelIcon />}
+                        aria-label="cancel order"
+                        className="span text-yellow-400"
+                    >
+                        等待賣家同意取消
+                    </Button>
+                );
+            case "CancelDenied":
+                return (
+                    <Button
+                        variant="outlined"
+                        startIcon={<CancelIcon />}
+                        aria-label="cancel order"
+                        className="span text-red-500"
+                    >
+                        訂單被拒絕取消，請聯絡賣家
+                    </Button>
+                );
+            case "Cancelled":
+                return (
+                    <Button
+                        variant="outlined"
+                        startIcon={<CancelIcon />}
+                        aria-label="cancel order"
+                        className="span text-red-500"
+                    >
+                        訂單已取消
+                    </Button>
+                );
             case "Shipping":
                 return (
                     <Button
                         variant="outlined"
                         startIcon={<LocalShippingIcon />}
                         aria-label="shipping order"
+                        onClick={() => handleTestShip(order_id)}
                     >
                         訂單運送中
                     </Button>
@@ -935,7 +969,7 @@ const MyOrdersContent = ({ setActiveComponent }: { setActiveComponent: (value: s
     const [currentComment, setCurrentComment] = React.useState('');
     const [currentStars, setCurrentStars] = React.useState<number | null>(null);
     const [activeOrderId, setActiveOrderId] = React.useState<number | null>(null);
-
+    const [openCancelDialog, setOpenCancelDialog] = React.useState(false);
     const handleOpenDialog = async (orderid: number) => {
         setActiveOrderId(orderid);
         try {
@@ -955,7 +989,50 @@ const MyOrdersContent = ({ setActiveComponent }: { setActiveComponent: (value: s
         }
         setOpenDialog(true);
     };
+    const handleOpenCancelDialog = (orderid: number) => {
+        setActiveOrderId(orderid);
+        setOpenCancelDialog(true);
+    };
+    const handleCloseCancelDialog = () => {
+        setOpenCancelDialog(false);
+    };
+    const handleCancelOrder = async () => {
+        if (activeOrderId !== null) {
+            const response = await fetch(`/api/py/cancel_orders_pr/customer/${activeOrderId}`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
 
+            if (response.ok) {
+                enqueueSnackbar("成功發送取消訂單請求", { variant: 'success' });
+                fetchOrders();
+                handleCloseCancelDialog();
+            } else {
+                enqueueSnackbar("發送取消訂單請求失敗", { variant: 'error' });
+                console.error('Failed to cancel the order');
+            }
+        }
+    };
+    const handleTestShip = async (orderid: number) => {
+        const response = await fetch(`/api/py/update_orders_status/customer/${orderid}`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        if (response.ok) {
+            enqueueSnackbar("成功改變運送狀態!", { variant: 'success' });
+            fetchOrders();
+        } else {
+            enqueueSnackbar("改變運送狀態失敗", { variant: 'error' });
+            console.error('Failed to cancel the order');
+        }
+    };
     const handleCommentSubmit = async () => {
         if (activeOrderId !== null) {
             try {
@@ -974,9 +1051,11 @@ const MyOrdersContent = ({ setActiveComponent }: { setActiveComponent: (value: s
 
                 if (response.ok) {
                     // Handle successful submission
+                    enqueueSnackbar("已送出評論!", { variant: 'success' })
                     setOpenDialog(false);
                 } else {
                     // Handle errors
+                    enqueueSnackbar("送出評論失敗!", { variant: 'error' })
                     console.error('Failed to submit comment');
                 }
             } catch (error) {
@@ -994,6 +1073,18 @@ const MyOrdersContent = ({ setActiveComponent }: { setActiveComponent: (value: s
     const filteredOrders = orders
         .filter(order => statusFilter === 'All' || order.orderstatus === statusFilter)
         .filter(order => order.books.some(book => book.bookname.toLowerCase().includes(searchTerm.toLowerCase())));
+    const convertToGMTPlus8 = (dateString: string) => {
+        const originalDate = new Date(dateString);
+        const gmtPlus8Date = new Date(originalDate.getTime() + (8 * 60 * 60 * 1000));
+        return gmtPlus8Date.toLocaleString('en-US', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
+    };
     return (
         <Grid container justifyContent="flex-start" alignItems="flex-start" className="pt-8 pr-5">
             <Grid item sx={{ borderRadius: '10px', overflow: 'hidden' }} className="bg-coupon-200 border-coupon-700 border">
@@ -1037,7 +1128,7 @@ const MyOrdersContent = ({ setActiveComponent }: { setActiveComponent: (value: s
             <Grid item className="pl-20 w-[850px]">
                 <Typography variant="h4" className="ml-3 mb-3 font-newsfont">我的訂單</Typography>
                 <Divider variant="middle"></Divider>
-                <Stack direction="column" className="mt-4">
+                <Stack direction="column" className="mt-4" alignItems="center">
                     <TextField
                         fullWidth
                         id="search-orders"
@@ -1056,12 +1147,13 @@ const MyOrdersContent = ({ setActiveComponent }: { setActiveComponent: (value: s
                             ),
                         }}
                     />
-                    <Breadcrumbs aria-label="breadcrumb">
-                        {['All', 'Unpaid', 'To ship', 'Shipping', 'Completed', 'Cancelling', 'Cancellation'].map((status) => (
+                    <Breadcrumbs aria-label="breadcrumb" className="mt-2">
+                        {['All', 'To ship', 'Shipping', 'Completed', 'Cancelling', 'CancelDenied', 'Cancelled'].map((status) => (
                             <Button
                                 key={status}
                                 color={statusFilter === status ? 'primary' : 'inherit'}
                                 style={{ cursor: 'pointer' }}
+                                size="small"
                                 onClick={() => setStatusFilter(status)}
                             >
                                 {status}
@@ -1074,9 +1166,11 @@ const MyOrdersContent = ({ setActiveComponent }: { setActiveComponent: (value: s
                         <Grid item xs={12} key={order.orderid}>
                             <Card variant="outlined">
                                 <CardContent>
-                                    <Stack direction="row" spacing={2}>
+                                    <Stack direction="row" spacing={2} alignItems="center">
                                         <Typography variant="h5" className="font-semibold">{order.sellername}</Typography>
+                                        <Typography variant="subtitle1">{"訂單時間 : "+convertToGMTPlus8(order.ordertime)}</Typography>
                                         {getOrderButton(order.orderstatus, order.orderid)}
+                                        <Typography variant="subtitle1">{order.ordercancelreason}</Typography>
                                     </Stack>
                                     <Typography color="text.secondary">
                                         {order.orderstatus} | {order.totalbookcount} Books | ${order.totalamount} | {order.shippingmethod}
@@ -1128,6 +1222,16 @@ const MyOrdersContent = ({ setActiveComponent }: { setActiveComponent: (value: s
                     <DialogActions>
                         <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
                         <Button onClick={handleCommentSubmit}>Submit</Button>
+                    </DialogActions>
+                </Dialog>
+                <Dialog open={openCancelDialog} onClose={handleCloseCancelDialog}>
+                    <DialogTitle>取消訂單請求</DialogTitle>
+                    <DialogContent>
+                        <Typography variant="h5" className="text-red-500">確定要取消訂單嗎?</Typography>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleCloseCancelDialog}>關閉</Button>
+                        <Button onClick={handleCancelOrder}>送出</Button>
                     </DialogActions>
                 </Dialog>
             </Grid>

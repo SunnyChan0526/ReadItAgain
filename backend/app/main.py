@@ -53,6 +53,7 @@ from app.models import (
     CouponEdit,
     ProfileEdit,
     ChangePass,
+    CommentInput,
 )
 from .config import settings
 from datetime import datetime
@@ -1074,6 +1075,8 @@ async def view_order_list_customer(
         order_list = {
             "orderid": order.orderid,
             "orderstatus": order.orderstatus,
+            "ordertime": order.time,
+            "ordercancelreason": order.cancellationreason,
             "sellerid": order.sellerid,
             "sellername": seller.name,
             "books": book_details,
@@ -1087,13 +1090,13 @@ async def view_order_list_customer(
 
 @app.get("/seller/orders")
 async def view_order_list_seller(
-    token: str,
     order_status: Optional[str] = Query(description="order status"),
     keyword_type: Optional[str] = Query(None, description="keyword type"),
     keyword: Optional[str] = Query(None, description="keyword"),
+    accessToken: Annotated[str | None, Cookie()] = None,
     session: AsyncSession = Depends(get_session),
 ):
-    seller = await get_current_seller(token, session)
+    seller = await get_current_seller(accessToken, session)
 
     orders = await session.scalars(
         select(Orders).where(Orders.sellerid == seller.sellerid)
@@ -1190,9 +1193,9 @@ async def get_order_details(
 
 @app.get("/customer/orders/{order_id}")
 async def get_order_details_customer(
-    token: str, order_id: int, session: AsyncSession = Depends(get_session)
+    order_id: int,accessToken: Annotated[str | None, Cookie()] = None, session: AsyncSession = Depends(get_session)
 ):
-    customer = await get_current_customer(token, session)
+    customer = await get_current_customer(accessToken, session)
     order_detail = await get_order_details(
         session, "customer", customer.customerid, order_id
     )
@@ -1201,18 +1204,18 @@ async def get_order_details_customer(
 
 @app.get("/seller/orders/{order_id}")
 async def get_order_details_seller(
-    token: str, order_id: int, session: AsyncSession = Depends(get_session)
+    order_id: int,accessToken: Annotated[str | None, Cookie()] = None, session: AsyncSession = Depends(get_session)
 ):
-    seller = await get_current_seller(token, session)
+    seller = await get_current_seller(accessToken, session)
     order_detail = await get_order_details(session, "seller", seller.sellerid, order_id)
     return order_detail
 
 
 @app.get("/seller/orders/{order_id}/comment")
 async def view_comment_for_seller(
-    token: str, order_id: int, session: AsyncSession = Depends(get_session)
+    order_id: int,accessToken: Annotated[str | None, Cookie()] = None, session: AsyncSession = Depends(get_session)
 ):
-    seller = await get_current_seller(token, session)
+    seller = await get_current_seller(accessToken, session)
     comment = await session.scalar(
         select(Orders.comment).where(
             Orders.orderid == order_id, Orders.sellerid == seller.sellerid
@@ -1243,10 +1246,10 @@ async def view_comment_for_seller(
 
 @app.post("/update_orders_status/{person}/{order_id}")
 async def update_orders(
-    person: str, order_id: int, token: str, session: AsyncSession = Depends(get_session)
+    person: str, order_id: int, accessToken: Annotated[str | None, Cookie()] = None, session: AsyncSession = Depends(get_session)
 ):
     if person == "seller":
-        seller = await get_current_seller(token, session)
+        seller = await get_current_seller(accessToken, session)
         current_status = await session.scalars(
             select(Orders.orderstatus).where(
                 Orders.orderid == order_id, Orders.sellerid == seller.sellerid
@@ -1263,7 +1266,7 @@ async def update_orders(
                 status_code=400, detail="Invalid order status to proceed."
             )
     elif person == "customer":
-        customer = await get_current_customer(token, session)
+        customer = await get_current_customer(accessToken, session)
         current_status = await session.scalars(
             select(Orders.orderstatus).where(
                 Orders.orderid == order_id, Orders.customerid == customer.customerid
@@ -1340,10 +1343,10 @@ async def get_order(
 
 @app.post("/cancel_orders_pr/{person}/{order_id}")
 async def cancel_orders_pr(
-    person: str, order_id: int, token: str, session: AsyncSession = Depends(get_session)
+    person: str, order_id: int, accessToken: Annotated[str | None, Cookie()] = None, session: AsyncSession = Depends(get_session)
 ):
-    order = await get_order(person, order_id, token, session)
-    if order:
+    order = await get_order(person, order_id, accessToken, session)
+    if order.orderstatus=="To ship":
         order.orderstatus = "Cancelling"
         await session.commit()
         return {"message": f"Pending of order {order_id} cancellation successfully"}
@@ -1357,10 +1360,10 @@ async def cancel_orders(
     order_id: int,
     reason: str,
     is_accepted: bool,
-    token: str,
+    accessToken: Annotated[str | None, Cookie()] = None,
     session: AsyncSession = Depends(get_session),
 ):
-    order = await get_order(person, order_id, token, session)
+    order = await get_order(person, order_id, accessToken, session)
     if order:
         if is_accepted:
             order.orderstatus = "Cancelled"
@@ -1368,6 +1371,8 @@ async def cancel_orders(
             await session.commit()
             return {"message": f"Order {order_id} cancelled successfully."}
         else:
+            order.orderstatus = "CancelDenied"
+            order.cancellationreason = reason
             return {"message": f"Order {order_id} cancellation request denied."}
     else:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -1375,16 +1380,14 @@ async def cancel_orders(
 
 @app.post("/comment/{order_id}")
 async def customer_comment(
-    order_id: int,
-    stars_input: int,
-    comment_input: str,
+    CommentIn: CommentInput,
     accessToken: Annotated[str | None, Cookie()] = None,
     session: AsyncSession = Depends(get_session),
 ):
     customer = await get_current_customer(accessToken, session)
     order = await session.scalars(
         select(Orders).where(
-            Orders.orderid == order_id, Orders.customerid == customer.customerid
+            Orders.orderid == CommentIn.order_id, Orders.customerid == customer.customerid
         )
     )
     order = order.first()
@@ -1395,7 +1398,7 @@ async def customer_comment(
         stmt = (
             update(Orders)
             .where(Orders.orderid == order.orderid)
-            .values(comment=comment_input, stars=stars_input)
+            .values(comment=CommentIn.comment_input, stars=CommentIn.stars_input)
         )
         await session.execute(stmt)
         await session.commit()
@@ -1424,9 +1427,9 @@ def coupon_to_dict(coupon, coupons_dict):
 
 @app.get("/seller/coupon/{type}")
 async def view_coupon(
-    type: str, token: str, session: AsyncSession = Depends(get_session)
+    type: str, accessToken: Annotated[str | None, Cookie()] = None, session: AsyncSession = Depends(get_session)
 ):
-    seller = await get_current_seller(token, session)
+    seller = await get_current_seller(accessToken, session)
     coupons = await session.scalars(
         select(Discount).where(Discount.sellerid == seller.sellerid)
     )
@@ -1457,9 +1460,9 @@ async def view_coupon(
 
 @app.post("/seller/coupon/create", response_model=Discount)
 async def create_coupon(
-    coupon: CouponCreate, token: str, session: AsyncSession = Depends(get_session)
+    coupon: CouponCreate, accessToken: Annotated[str | None, Cookie()] = None, session: AsyncSession = Depends(get_session)
 ):
-    seller = await get_current_seller(token, session)
+    seller = await get_current_seller(accessToken, session)
     valid_types = ["shipping fee", "seasoning", "special event"]
     if coupon.type not in valid_types:
         raise HTTPException(
@@ -1474,12 +1477,12 @@ async def create_coupon(
 
 @app.patch("/seller/coupon/edit/{discount_code}")
 async def edit_coupon(
-    token: str,
     coupon: CouponEdit,
     discount_code: int,
+    accessToken: Annotated[str | None, Cookie()] = None,
     session: AsyncSession = Depends(get_session),
 ):
-    seller = await get_current_seller(token, session)
+    seller = await get_current_seller(accessToken, session)
 
     discount = await session.scalars(
         select(Discount).where(
@@ -1553,9 +1556,9 @@ async def edit_coupon(
 
 @app.delete("/seller/coupon/delete/{discount_code}")
 async def delete_coupon(
-    token: str, discount_code: int, session: AsyncSession = Depends(get_session)
+    discount_code: int,accessToken: Annotated[str | None, Cookie()] = None, session: AsyncSession = Depends(get_session)
 ):
-    seller = await get_current_seller(token, session)
+    seller = await get_current_seller(accessToken, session)
 
     appied_record = await session.scalars(
         select(Applied_List).where(Applied_List.discountcode == discount_code)
@@ -1601,12 +1604,12 @@ async def delete_coupon(
 
 @app.post("/seller/coupon/activate/{discount_code}")
 async def activate_coupon(
-    token: str,
     discount_code: int,
     activate: bool,
+    accessToken: Annotated[str | None, Cookie()] = None,
     session: AsyncSession = Depends(get_session),
 ):
-    seller = await get_current_seller(token, session)
+    seller = await get_current_seller(accessToken, session)
 
     discount = await session.scalars(
         select(Discount).where(
@@ -1638,14 +1641,14 @@ async def activate_coupon(
 
 @app.get("/seller/books")
 async def view_books_list_for_seller(
-    token: str,
     bookstate: Optional[str] = Query(description="order status"),
     keyword_type: Optional[str] = Query(None, description="keyword type"),
     keyword: Optional[str] = Query(None, description="keyword"),
     book_id: Optional[int] = None,
+    accessToken: Annotated[str | None, Cookie()] = None,
     session: AsyncSession = Depends(get_session),
 ):
-    seller = await get_current_seller(token, session)
+    seller = await get_current_seller(accessToken, session)
 
     if book_id is not None:
         books = await session.scalars(
@@ -1713,7 +1716,6 @@ async def get_book_img(book_id: int, session: AsyncSession = Depends(get_session
 
 @app.post("/seller/books/create")
 async def create_book(
-    token: str,
     isbn: str,
     ShippingLocation: str,
     Name: str,
@@ -1722,9 +1724,10 @@ async def create_book(
     Description: str,
     Category: str,
     init_pictures: List[UploadFile],
+    accessToken: Annotated[str | None, Cookie()] = None,
     session: AsyncSession = Depends(get_session),
 ):
-    seller = await get_current_seller(token, session)
+    seller = await get_current_seller(accessToken, session)
     book_state = "no picture"
     sql_update = f"""
                     insert into BOOK (SellerID, ISBN, ShippingLocation , Name, Condition, Price, Description, Category, State)
@@ -1781,9 +1784,7 @@ async def create_book(
 
 @app.patch("/seller/books/{book_id}/edit")
 async def edit_book(
-    token: str,
     book_id: int,
-    session: AsyncSession = Depends(get_session),
     isbn: str = Query(None),
     ShippingLocation: str = Query(None),
     Name: str = Query(None),
@@ -1792,8 +1793,10 @@ async def edit_book(
     Description: str = Query(None),
     Category: str = Query(None),
     state: str = Query(None),
+    accessToken: Annotated[str | None, Cookie()] = None,
+    session: AsyncSession = Depends(get_session),
 ):
-    seller = await get_current_seller(token, session)
+    seller = await get_current_seller(accessToken, session)
     book = await get_book(book_id, session)
     if book.state != "ordered":
         if isbn:
@@ -1844,12 +1847,12 @@ async def edit_book(
 
 @app.post("/seller/books/{book_id}/upload_pictures")
 async def upload_book_pictures(
-    token: str,
     book_id: int,
     pictures: List[UploadFile] = File(...),
+    accessToken: Annotated[str | None, Cookie()] = None,
     session: AsyncSession = Depends(get_session),
 ):
-    seller = await get_current_seller(token, session)
+    seller = await get_current_seller(accessToken, session)
     uploaded_pictures = []
     old_picture = await session.scalars(
         select(Picture_List)
@@ -1888,12 +1891,12 @@ async def upload_book_pictures(
 
 @app.delete("/seller/books/{book_id}/remove_picture")
 async def remove_book_picture(
-    token: str,
     book_id: int,
     picture_id: int,
+    accessToken: Annotated[str | None, Cookie()] = None,
     session: AsyncSession = Depends(get_session),
 ):
-    seller = await get_current_seller(token, session)
+    seller = await get_current_seller(accessToken, session)
     pic = await session.scalars(
         select(Picture_List).where(
             Picture_List.pictureid == picture_id, Picture_List.bookid == book_id
@@ -1931,9 +1934,9 @@ async def delete_book(book_id: int, session: AsyncSession = Depends(get_session)
 
 @app.get("/seller/books/{book_id}")
 async def get_book_details_by_seller(
-    token: str, book_id: int, session: AsyncSession = Depends(get_session)
+    book_id: int,accessToken: Annotated[str | None, Cookie()] = None, session: AsyncSession = Depends(get_session)
 ):
-    seller = await get_current_seller(token, session)
+    seller = await get_current_seller(accessToken, session)
     book = await session.scalars(
         select(Book).where(Book.sellerid == seller.sellerid, Book.bookid == book_id)
     )
