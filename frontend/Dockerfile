@@ -1,5 +1,5 @@
 # 使用 Node.js 官方基礎映像
-FROM node:14
+FROM node:21
 
 # 設置工作目錄。這是您在容器內部的應用根目錄
 WORKDIR /app
@@ -21,4 +21,4 @@ EXPOSE 3000
 ENV CHOKIDAR_USEPOLLING=true
 
 # 運行應用。這裡使用的是 React 項目中的 start 指令
-CMD ["npm", "start"]
+CMD ["npm","run","dev"]
